@@ -623,6 +623,16 @@ input:focus {
   .back-button {
     left: 16px;
   }
+
+  /* Two columns per row instead of one long horizontally-scrolling row —
+     the third column and beyond wrap down to the next line. */
+  .columns {
+    flex-wrap: wrap;
+  }
+
+  .column-wrapper {
+    width: calc(50% - 8px);
+  }
 }
 
 /* --- Team members --- */
