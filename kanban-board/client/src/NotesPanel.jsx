@@ -58,6 +58,20 @@ export default function NotesPanel({ boardId }) {
     return () => socket.off('notes:changed', onChanged);
   }, [boardId]);
 
+  // Closes the reaction picker on a click outside any note. Clicking inside
+  // a note is already handled by that note's own onClick (which opens,
+  // closes, or switches the picker), and the reaction pill/emoji/delete
+  // buttons all stop propagation, so this only ever fires for genuinely
+  // outside clicks — no need to compare against the current pickerNoteId.
+  useEffect(() => {
+    if (!pickerNoteId) return;
+    const handleClickOutside = (e) => {
+      if (!e.target.closest('.note-item')) setPickerNoteId(null);
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [pickerNoteId]);
+
   const handleAdd = async (e) => {
     e.preventDefault();
     if (!text.trim()) return;
@@ -76,13 +90,28 @@ export default function NotesPanel({ boardId }) {
     load();
   };
 
+  // Toggles the reaction in local state immediately — we already know
+  // exactly what the server will end up with (this user's own reaction on
+  // this emoji, added or removed), so there's no need to wait on the
+  // request before showing it. The board's own 'notes:changed' broadcast
+  // (which reaches the acting client too) reconciles shortly after as a
+  // no-op confirmation; on failure, a resync reverts the optimistic change.
   const handleToggleReaction = async (noteId, emoji) => {
     setPickerNoteId(null);
+    setNotes(prev => prev.map(n => {
+      if (n._id !== noteId) return n;
+      const alreadyReacted = n.reactions.some(r => r.emoji === emoji && r.userId === user._id);
+      const reactions = alreadyReacted
+        ? n.reactions.filter(r => !(r.emoji === emoji && r.userId === user._id))
+        : [...n.reactions, { emoji, userId: user._id, userName: user.name }];
+      return { ...n, reactions };
+    }));
+
     try {
       await api.toggleReaction(noteId, emoji);
-      load();
     } catch (e) {
       setError(e.message);
+      load();
     }
   };
 
@@ -150,10 +179,10 @@ export default function NotesPanel({ boardId }) {
                     <button
                       key={g.emoji}
                       className={`reaction-pill${g.reactedByMe ? ' reaction-pill-active' : ''}`}
-                      title={g.names.join(', ')}
                       onClick={(e) => { e.stopPropagation(); handleToggleReaction(n._id, g.emoji); }}
                     >
                       {g.emoji} {g.count}
+                      <span className="reaction-tooltip">{g.emoji} {g.names.join(', ')}</span>
                     </button>
                   ))}
                 </div>

@@ -73,6 +73,33 @@ export default function BoardDetail({ boardId, onBack }) {
     load();
   };
 
+  // Shows the new card immediately with a temporary id, instead of waiting
+  // on the create request AND then a full board refetch before it appears —
+  // that double round-trip is what made adding a card feel laggy. The temp
+  // card gets swapped for the real one (real id, server-assigned position)
+  // once the request resolves; on failure it's just dropped via a resync.
+  const handleAddCard = async (columnId, title) => {
+    const tempId = `temp-${Date.now()}`;
+    const tempCard = { _id: tempId, columnId, title, description: '' };
+    setBoard(prev => ({
+      ...prev,
+      columns: prev.columns.map(col => (col._id === columnId ? { ...col, cards: [...col.cards, tempCard] } : col)),
+    }));
+
+    try {
+      const created = await api.createCard(columnId, title);
+      setBoard(prev => ({
+        ...prev,
+        columns: prev.columns.map(col => (col._id === columnId
+          ? { ...col, cards: col.cards.map(c => (c._id === tempId ? created : c)) }
+          : col)),
+      }));
+    } catch (e) {
+      setError(e.message);
+      load();
+    }
+  };
+
   const findColumnOf = (cardId) => board.columns.find(col => col.cards.some(c => c._id === cardId));
 
   // Fires continuously while a card is dragged over something. dnd-kit's
@@ -209,6 +236,7 @@ export default function BoardDetail({ boardId, onBack }) {
                   key={col._id}
                   column={col}
                   onChange={load}
+                  onAddCard={handleAddCard}
                   onDeleteColumn={handleDeleteColumn}
                   onDeleteCard={handleDeleteCard}
                 />
@@ -282,7 +310,7 @@ function PresenceList({ users }) {
   );
 }
 
-function Column({ column, onChange, onDeleteColumn, onDeleteCard }) {
+function Column({ column, onChange, onAddCard, onDeleteColumn, onDeleteCard }) {
   const [title, setTitle] = useState('');
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   // This id is only for cards being dropped onto the column's empty body —
@@ -311,12 +339,11 @@ function Column({ column, onChange, onDeleteColumn, onDeleteCard }) {
     transition,
   };
 
-  const handleAddCard = async (e) => {
+  const handleAddCard = (e) => {
     e.preventDefault();
     if (!title.trim()) return;
-    await api.createCard(column._id, title.trim());
+    onAddCard(column._id, title.trim());
     setTitle('');
-    onChange();
   };
 
   const cardIds = column.cards.map(c => c._id);

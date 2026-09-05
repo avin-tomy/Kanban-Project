@@ -354,7 +354,7 @@ input:focus {
 
 /* --- Notes: shared per-board notes feed, side panel next to the columns --- */
 .notes-panel {
-  width: 460px;
+  width: 340px;
   flex-shrink: 0;
   background: var(--surface-sunken);
   border: 1px solid var(--border);
@@ -421,7 +421,7 @@ input:focus {
 
 .notes-list {
   list-style: none;
-  padding: 0;
+  padding: 0 10px 0 0;
   margin: 0;
   display: flex;
   flex-direction: column;
@@ -493,6 +493,7 @@ input:focus {
 }
 
 .reaction-pill {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 4px;
@@ -506,6 +507,29 @@ input:focus {
 
 .reaction-pill:hover {
   border-color: var(--accent);
+}
+
+.reaction-tooltip {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: normal;
+  color: var(--text);
+  white-space: nowrap;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  z-index: 10;
+  pointer-events: none;
+}
+
+.reaction-pill:hover .reaction-tooltip {
+  display: block;
 }
 
 .reaction-pill-active {
