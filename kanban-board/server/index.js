@@ -63,6 +63,7 @@ io.use(async (socket, next) => {
     if (!user) return next(new Error('unauthorized'));
     socket.userId = user._id.toString();
     socket.userName = user.name;
+    socket.userEmail = user.email;
     next();
   } catch {
     next(new Error('unauthorized'));
@@ -107,7 +108,7 @@ io.on('connection', (socket) => {
       socket.join(`board:${boardId}`);
       socket.joinedBoardIds.add(boardId);
       if (!boardPresence.has(boardId)) boardPresence.set(boardId, new Map());
-      boardPresence.get(boardId).set(socket.id, { userId: socket.userId, name: socket.userName });
+      boardPresence.get(boardId).set(socket.id, { userId: socket.userId, name: socket.userName, email: socket.userEmail });
       broadcastPresence(boardId);
     }
   });

@@ -220,20 +220,59 @@ export default function BoardDetail({ boardId, onBack }) {
 
 const initialsOf = (name) => name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
 
+// Two different people can share a name (or just initials), which made
+// same-named users look like one duplicated entry even though they were
+// already being tracked correctly. A per-user color, hashed from their id,
+// makes them visually distinct regardless of what their name looks like.
+const PRESENCE_COLORS = ['#5b8def', '#e07a5f', '#81b29a', '#f2cc8f', '#9d4edd', '#ef476f', '#2ec4b6', '#ff9f1c'];
+
+function colorForUserId(userId) {
+  let hash = 0;
+  for (let i = 0; i < userId.length; i++) hash = (hash * 31 + userId.charCodeAt(i)) >>> 0;
+  return PRESENCE_COLORS[hash % PRESENCE_COLORS.length];
+}
+
 function PresenceList({ users }) {
+  const [open, setOpen] = useState(false);
   if (!users.length) return null;
   const shown = users.slice(0, 5);
   const overflow = users.length - shown.length;
 
   return (
-    <div className="presence-list">
-      {shown.map(u => (
-        <span key={u.userId} className="presence-avatar" title={u.name}>{initialsOf(u.name)}</span>
-      ))}
-      {overflow > 0 && (
-        <span className="presence-avatar presence-avatar-more" title={users.slice(5).map(u => u.name).join(', ')}>
-          +{overflow}
-        </span>
+    <div className="presence-menu">
+      <button className="presence-trigger" onClick={() => setOpen(o => !o)} aria-label="Show who's viewing this board">
+        {shown.map(u => (
+          <span
+            key={u.userId}
+            className="presence-avatar"
+            style={{ background: colorForUserId(u.userId) }}
+            title={u.email ? `${u.name} (${u.email})` : u.name}
+          >
+            {initialsOf(u.name)}
+          </span>
+        ))}
+        {overflow > 0 && <span className="presence-avatar presence-avatar-more">+{overflow}</span>}
+      </button>
+      {open && (
+        <>
+          <div className="presence-backdrop" onClick={() => setOpen(false)} />
+          <div className="presence-dropdown">
+            <div className="presence-dropdown-label">Currently viewing ({users.length})</div>
+            <ul className="presence-dropdown-list">
+              {users.map(u => (
+                <li key={u.userId}>
+                  <span className="presence-avatar presence-avatar-small" style={{ background: colorForUserId(u.userId) }}>
+                    {initialsOf(u.name)}
+                  </span>
+                  <span className="presence-dropdown-name">
+                    {u.name}
+                    {u.email && <span className="presence-dropdown-email">{u.email}</span>}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </>
       )}
     </div>
   );
