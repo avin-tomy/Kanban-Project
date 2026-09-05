@@ -24,6 +24,7 @@ function AuthenticatedApp() {
   const [selectedBoardId, setSelectedBoardId] = useState(null);
   const [view, setView] = useState('boards'); // 'boards' | 'members'
   const [error, setError] = useState('');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const loadTeams = () => api.getMyTeams().then(setTeams).catch(e => setError(e.message));
 
@@ -60,6 +61,11 @@ function AuthenticatedApp() {
 
   return (
     <div className="app-shell">
+      <button className="mobile-menu-toggle" onClick={() => setSidebarOpen(true)} aria-label="Open menu">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <path d="M2 4.5h14M2 9h14M2 13.5h14" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+        </svg>
+      </button>
       <Sidebar
         teams={teams}
         currentTeamId={currentTeamId}
@@ -67,6 +73,8 @@ function AuthenticatedApp() {
         onCreateTeam={handleCreateTeam}
         view={view}
         onChangeView={(v) => { setView(v); setSelectedBoardId(null); }}
+        open={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
       />
       <main className="main-content">
         {!currentTeam ? (

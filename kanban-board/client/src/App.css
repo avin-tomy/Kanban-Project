@@ -72,6 +72,12 @@ body {
   margin-left: var(--sidebar-width);
   padding: 24px;
   min-height: 100vh;
+  /* 100vh is the LARGEST possible viewport (browser chrome hidden); on
+     mobile that's taller than what's actually visible with the address bar
+     shown, which is what caused the page to always have a bit of pointless
+     scroll room. 100dvh tracks the real visible height and is layered on
+     top so unsupporting browsers just keep the vh fallback above. */
+  min-height: 100dvh;
 }
 
 h1 {
@@ -429,6 +435,7 @@ input:focus {
 /* --- Auth screens --- */
 .auth-screen {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -515,6 +522,88 @@ input:focus {
 
 .empty-state p {
   color: var(--text-muted);
+}
+
+/* --- Mobile: collapsible sidebar --- */
+.mobile-menu-toggle {
+  display: none;
+}
+
+.sidebar-backdrop {
+  display: none;
+}
+
+.sidebar-mobile-close {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-menu-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    width: 40px;
+    height: 40px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    z-index: 150;
+  }
+
+  .sidebar-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 199;
+  }
+
+  .sidebar {
+    transform: translateX(-100%);
+    transition: transform 200ms ease;
+    z-index: 200;
+    box-shadow: 0 0 24px rgba(0, 0, 0, 0.4);
+  }
+
+  .sidebar.sidebar-open {
+    transform: translateX(0);
+  }
+
+  .sidebar-header-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+  }
+
+  .sidebar-mobile-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 20px;
+    line-height: 1;
+  }
+
+  .sidebar-logo {
+    margin-bottom: 0;
+  }
+
+  .main-content {
+    margin-left: 0;
+  }
+
+  .back-button {
+    left: 16px;
+  }
 }
 
 /* --- Team members --- */
