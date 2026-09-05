@@ -1,4 +1,9 @@
-export const BASE_URL = 'http://localhost:4000';
+// In dev, the client (Vite, :5173) and API (:4000) run as separate servers,
+// so requests need an explicit host. In production the API serves the built
+// client itself (see server/index.js), so requests are same-origin and this
+// is just ''. VITE_API_URL overrides this if the two are ever split again
+// (e.g. deployed as separate services).
+export const BASE_URL = import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? 'http://localhost:4000' : '');
 
 let authToken = null;
 let onUnauthorized = null;

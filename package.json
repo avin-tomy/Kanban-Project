@@ -1,0 +1,9 @@
+{
+  "name": "kanban-project",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build": "npm install --prefix kanban-board/client && npm run build --prefix kanban-board/client && npm install --prefix kanban-board/server",
+    "start": "npm start --prefix kanban-board/server"
+  }
+}

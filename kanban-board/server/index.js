@@ -1,4 +1,6 @@
 require('dotenv').config();
+const fs = require('fs');
+const path = require('path');
 const http = require('http');
 const express = require('express');
 const cors = require('cors');
@@ -23,9 +25,26 @@ app.use(express.json());
 
 app.use('/auth', authRouter);
 app.use('/teams', requireAuth, teamsRouter);
-app.use('/', requireAuth, boardsRouter);
-app.use('/', requireAuth, columnsRouter);
-app.use('/', requireAuth, cardsRouter);
+// boards/columns/cards apply requireAuth per-route (inside each router) rather
+// than here, because they're mounted at '/' alongside static file serving and
+// the SPA fallback below — a blanket middleware at this mount point would run
+// for every request in the app, not just the ones these routers actually handle.
+app.use('/', boardsRouter);
+app.use('/', columnsRouter);
+app.use('/', cardsRouter);
+
+// In production, this same service also serves the built React app, so the
+// client and API share one origin/deployment (no separate static host, no
+// cross-origin requests). client/dist only exists after `vite build` has
+// run — locally that's opt-in, so this is skipped entirely if it's missing
+// rather than erroring on every unmatched route during normal dev.
+const clientDist = path.join(__dirname, '../client/dist');
+if (fs.existsSync(clientDist)) {
+  app.use(express.static(clientDist));
+  // Anything not matched by an API route or a static file falls through to
+  // index.html, so client-side navigation/refresh keeps working.
+  app.use((req, res) => res.sendFile(path.join(clientDist, 'index.html')));
+}
 
 const httpServer = http.createServer(app);
 const io = new Server(httpServer, { cors: corsOptions });

@@ -2,10 +2,11 @@ const express = require('express');
 const router = express.Router();
 const Column = require('../models/Column');
 const Card = require('../models/Card');
+const { requireAuth } = require('../middleware/auth');
 const { requireColumnAccess, requireCardAccess } = require('../middleware/teamAccess');
 
 // POST /columns/:columnId/cards — create a card inside a column
-router.post('/columns/:columnId/cards', requireColumnAccess, async (req, res) => {
+router.post('/columns/:columnId/cards', requireAuth, requireColumnAccess, async (req, res) => {
   const column = req.column;
 
   const { title, description } = req.body;
@@ -26,7 +27,7 @@ router.post('/columns/:columnId/cards', requireColumnAccess, async (req, res) =>
 });
 
 // GET /columns/:columnId/cards — list cards in a column
-router.get('/columns/:columnId/cards', requireColumnAccess, async (req, res) => {
+router.get('/columns/:columnId/cards', requireAuth, requireColumnAccess, async (req, res) => {
   const cards = await Card.find({ columnId: req.params.columnId }).sort({ position: 1 });
   res.status(200).json(cards);
 });
@@ -34,7 +35,7 @@ router.get('/columns/:columnId/cards', requireColumnAccess, async (req, res) => 
 // PATCH /cards/:id — partial update: edit text, or MOVE the card by changing
 // columnId/position. Moving a card is just "change which column it belongs to" —
 // no separate "move" endpoint needed, because the card's column is just a field.
-router.patch('/cards/:id', requireCardAccess, async (req, res) => {
+router.patch('/cards/:id', requireAuth, requireCardAccess, async (req, res) => {
   const card = req.card;
 
   const { title, description, columnId, position } = req.body;
@@ -57,7 +58,7 @@ router.patch('/cards/:id', requireCardAccess, async (req, res) => {
 });
 
 // DELETE /cards/:id
-router.delete('/cards/:id', requireCardAccess, async (req, res) => {
+router.delete('/cards/:id', requireAuth, requireCardAccess, async (req, res) => {
   const boardId = req.card.boardId;
   await req.card.deleteOne();
   req.app.get('io').to(`board:${boardId}`).emit('board:changed', { boardId, kind: 'card-deleted' });

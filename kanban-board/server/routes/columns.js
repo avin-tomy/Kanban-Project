@@ -2,12 +2,13 @@ const express = require('express');
 const router = express.Router();
 const Column = require('../models/Column');
 const Card = require('../models/Card');
+const { requireAuth } = require('../middleware/auth');
 const { requireBoardAccess, requireColumnAccess } = require('../middleware/teamAccess');
 
 // POST /boards/:boardId/columns — create a column inside a board.
 // Nested under /boards because a column can't exist without a parent board —
 // the URL reflects that ownership, same as /posts/9/comments earlier.
-router.post('/boards/:boardId/columns', requireBoardAccess, async (req, res) => {
+router.post('/boards/:boardId/columns', requireAuth, requireBoardAccess, async (req, res) => {
   const board = req.board;
 
   const { name } = req.body;
@@ -22,7 +23,7 @@ router.post('/boards/:boardId/columns', requireBoardAccess, async (req, res) => 
 });
 
 // GET /boards/:boardId/columns — list columns for a board
-router.get('/boards/:boardId/columns', requireBoardAccess, async (req, res) => {
+router.get('/boards/:boardId/columns', requireAuth, requireBoardAccess, async (req, res) => {
   const columns = await Column.find({ boardId: req.params.boardId }).sort({ position: 1 });
   res.status(200).json(columns);
 });
@@ -30,7 +31,7 @@ router.get('/boards/:boardId/columns', requireBoardAccess, async (req, res) => {
 // PATCH /columns/:id — partial update (rename, or reorder via position).
 // A single top-level resource from here on — it doesn't need to be re-nested
 // under /boards/:boardId, since its own id is already globally unique.
-router.patch('/columns/:id', requireColumnAccess, async (req, res) => {
+router.patch('/columns/:id', requireAuth, requireColumnAccess, async (req, res) => {
   const column = req.column;
 
   const { name, position } = req.body;
@@ -49,7 +50,7 @@ router.patch('/columns/:id', requireColumnAccess, async (req, res) => {
 // columnId reassigned here too, so this single call also covers cross-column
 // moves — the source column needs no write at all, since removing an id from
 // its list still leaves the rest in correct relative order.
-router.put('/columns/:id/cards/order', requireColumnAccess, async (req, res) => {
+router.put('/columns/:id/cards/order', requireAuth, requireColumnAccess, async (req, res) => {
   const column = req.column;
 
   const { cardIds } = req.body;
@@ -78,7 +79,7 @@ router.put('/columns/:id/cards/order', requireColumnAccess, async (req, res) => 
 });
 
 // DELETE /columns/:id — cascades to its cards
-router.delete('/columns/:id', requireColumnAccess, async (req, res) => {
+router.delete('/columns/:id', requireAuth, requireColumnAccess, async (req, res) => {
   const column = req.column;
 
   await Card.deleteMany({ columnId: column._id });
