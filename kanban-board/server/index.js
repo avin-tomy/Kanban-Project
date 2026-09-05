@@ -11,6 +11,7 @@ const { Server } = require('socket.io');
 const { requireAuth } = require('./middleware/auth');
 const TeamMember = require('./models/TeamMember');
 const Board = require('./models/Board');
+const User = require('./models/User');
 
 const authRouter = require('./routes/auth');
 const teamsRouter = require('./routes/teams');
@@ -52,18 +53,46 @@ app.set('io', io);
 
 // Socket connections authenticate the same way REST requests do — a valid
 // JWT, verified with the same secret — just carried in the handshake instead
-// of an Authorization header.
-io.use((socket, next) => {
+// of an Authorization header. The user is looked up once per connection (not
+// per event) so presence broadcasts below have a name to show without an
+// extra DB round-trip each time.
+io.use(async (socket, next) => {
   try {
     const payload = jwt.verify(socket.handshake.auth.token, process.env.JWT_SECRET);
-    socket.userId = payload.sub;
+    const user = await User.findById(payload.sub);
+    if (!user) return next(new Error('unauthorized'));
+    socket.userId = user._id.toString();
+    socket.userName = user.name;
     next();
   } catch {
     next(new Error('unauthorized'));
   }
 });
 
+// boardId -> Map<socketId, {userId, name}> — who currently has each board
+// open. Keyed by socket (not userId) so the same person in two tabs is
+// tracked correctly (closing one tab shouldn't remove them if the other is
+// still open); dedupeByUser collapses that back down to one entry per person
+// for display.
+const boardPresence = new Map();
+
+function dedupeByUser(entries) {
+  const byUserId = new Map();
+  for (const entry of entries) byUserId.set(entry.userId, entry);
+  return [...byUserId.values()];
+}
+
+function broadcastPresence(boardId) {
+  const entries = boardPresence.get(boardId);
+  const users = entries ? dedupeByUser([...entries.values()]) : [];
+  io.to(`board:${boardId}`).emit('board:presence', { boardId, users });
+}
+
 io.on('connection', (socket) => {
+  // Tracked so disconnect can clean up presence on every board this socket
+  // had open, without needing to know the ids up front.
+  socket.joinedBoardIds = new Set();
+
   // A valid JWT only proves who the socket is; joining a room still requires
   // checking that user actually belongs to the team/board being requested —
   // otherwise anyone with an account could eavesdrop on any team's changes.
@@ -76,9 +105,26 @@ io.on('connection', (socket) => {
     const board = await Board.findById(boardId);
     if (board && await TeamMember.exists({ teamId: board.teamId, userId: socket.userId })) {
       socket.join(`board:${boardId}`);
+      socket.joinedBoardIds.add(boardId);
+      if (!boardPresence.has(boardId)) boardPresence.set(boardId, new Map());
+      boardPresence.get(boardId).set(socket.id, { userId: socket.userId, name: socket.userName });
+      broadcastPresence(boardId);
     }
   });
-  socket.on('leave:board', (boardId) => socket.leave(`board:${boardId}`));
+
+  socket.on('leave:board', (boardId) => {
+    socket.leave(`board:${boardId}`);
+    socket.joinedBoardIds.delete(boardId);
+    boardPresence.get(boardId)?.delete(socket.id);
+    broadcastPresence(boardId);
+  });
+
+  socket.on('disconnect', () => {
+    for (const boardId of socket.joinedBoardIds) {
+      boardPresence.get(boardId)?.delete(socket.id);
+      broadcastPresence(boardId);
+    }
+  });
 });
 
 const PORT = process.env.PORT || 4000;

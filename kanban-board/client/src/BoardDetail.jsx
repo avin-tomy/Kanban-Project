@@ -28,22 +28,29 @@ export default function BoardDetail({ boardId, onBack }) {
   const [board, setBoard] = useState(null);
   const [newColumnName, setNewColumnName] = useState('');
   const [error, setError] = useState('');
+  const [presentUsers, setPresentUsers] = useState([]);
 
   const load = () => api.getBoardFull(boardId).then(setBoard).catch(e => setError(e.message));
 
   useEffect(() => { load(); }, [boardId]);
 
   // Live updates: any column/card change another team member makes to this
-  // board refreshes it here too, without a manual reload.
+  // board refreshes it here too, without a manual reload. The server also
+  // broadcasts who currently has this same board open, keyed off the same
+  // join/leave — see index.js's boardPresence tracking.
   useEffect(() => {
     const socket = getSocket();
     if (!socket) return;
     socket.emit('join:board', boardId);
     const onChanged = (payload) => { if (payload.boardId === boardId) load(); };
+    const onPresence = (payload) => { if (payload.boardId === boardId) setPresentUsers(payload.users); };
     socket.on('board:changed', onChanged);
+    socket.on('board:presence', onPresence);
     return () => {
       socket.emit('leave:board', boardId);
       socket.off('board:changed', onChanged);
+      socket.off('board:presence', onPresence);
+      setPresentUsers([]);
     };
   }, [boardId]);
 
@@ -176,6 +183,7 @@ export default function BoardDetail({ boardId, onBack }) {
       <button onClick={onBack} className="back-button btn-ghost btn-small">&larr; Back to boards</button>
       <div className="page-header">
         <h1>{board.name}</h1>
+        <PresenceList users={presentUsers} />
       </div>
       {error && <p className="error">{error}</p>}
       <form onSubmit={handleAddColumn} className="inline-form">
@@ -206,6 +214,27 @@ export default function BoardDetail({ boardId, onBack }) {
           </div>
         </SortableContext>
       </DndContext>
+    </div>
+  );
+}
+
+const initialsOf = (name) => name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+
+function PresenceList({ users }) {
+  if (!users.length) return null;
+  const shown = users.slice(0, 5);
+  const overflow = users.length - shown.length;
+
+  return (
+    <div className="presence-list">
+      {shown.map(u => (
+        <span key={u.userId} className="presence-avatar" title={u.name}>{initialsOf(u.name)}</span>
+      ))}
+      {overflow > 0 && (
+        <span className="presence-avatar presence-avatar-more" title={users.slice(5).map(u => u.name).join(', ')}>
+          +{overflow}
+        </span>
+      )}
     </div>
   );
 }
