@@ -28,6 +28,33 @@ router.get('/boards/:boardId/columns', requireAuth, requireBoardAccess, async (r
   res.status(200).json(columns);
 });
 
+// PUT /boards/:boardId/columns/order — replace the full ordering of columns
+// on this board. Same shape as the card reorder endpoint below: one write for
+// the whole new order instead of one PATCH per column.
+router.put('/boards/:boardId/columns/order', requireAuth, requireBoardAccess, async (req, res) => {
+  const board = req.board;
+
+  const { columnIds } = req.body;
+  if (!Array.isArray(columnIds)) {
+    return res.status(400).json({ error: 'columnIds must be an array' });
+  }
+
+  // Every column being reordered must already belong to this board — same
+  // reasoning as the cross-board guard on card reordering.
+  const existingColumns = await Column.find({ _id: { $in: columnIds } });
+  if (existingColumns.length !== columnIds.length || existingColumns.some(c => String(c.boardId) !== String(board._id))) {
+    return res.status(400).json({ error: 'All columnIds must belong to a column already on this board' });
+  }
+
+  await Column.bulkWrite(columnIds.map((columnId, index) => ({
+    updateOne: { filter: { _id: columnId }, update: { position: index } },
+  })));
+
+  const columns = await Column.find({ boardId: board._id }).sort({ position: 1 });
+  req.app.get('io').to(`board:${board._id}`).emit('board:changed', { boardId: board._id, kind: 'columns-reordered' });
+  res.status(200).json(columns);
+});
+
 // PATCH /columns/:id — partial update (rename, or reorder via position).
 // A single top-level resource from here on — it doesn't need to be re-nested
 // under /boards/:boardId, since its own id is already globally unique.

@@ -261,6 +261,16 @@ input:focus {
   border-color: var(--accent);
 }
 
+.column-wrapper-dragging {
+  opacity: 0.6;
+}
+
+.column-drag-handle {
+  cursor: grab;
+  flex: 1;
+  min-width: 0;
+}
+
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -490,12 +500,12 @@ input:focus {
 }
 
 .sidebar-create-team-btn {
-  margin: 12px 12px 0 12px;
+  margin: 16px 12px 0 12px;
   width: calc(100% - 24px);
 }
 
 .sidebar-create-team-form {
-  margin: 12px 12px 0 12px;
+  margin: 16px 12px 0 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;

@@ -56,6 +56,8 @@ export const api = {
   createColumn: (boardId, name) =>
     request(`/boards/${boardId}/columns`, { method: 'POST', body: JSON.stringify({ name }) }),
   deleteColumn: (columnId) => request(`/columns/${columnId}`, { method: 'DELETE' }),
+  reorderColumns: (boardId, columnIds) =>
+    request(`/boards/${boardId}/columns/order`, { method: 'PUT', body: JSON.stringify({ columnIds }) }),
   reorderColumnCards: (columnId, cardIds) =>
     request(`/columns/${columnId}/cards/order`, { method: 'PUT', body: JSON.stringify({ cardIds }) }),
 

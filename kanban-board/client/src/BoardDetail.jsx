@@ -1,10 +1,28 @@
 import { useEffect, useState } from 'react';
-import { DndContext, useDroppable } from '@dnd-kit/core';
-import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
+import { DndContext, useDroppable, rectIntersection } from '@dnd-kit/core';
+import { SortableContext, useSortable, verticalListSortingStrategy, horizontalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { api } from './api';
 import ConfirmDialog from './ConfirmDialog';
 import { getSocket } from './socket';
+
+// Columns get their own sortable identity distinct from their id as a card
+// drop-zone (see the Column component) — dnd-kit can't register the same id
+// as two different droppables, so column-reordering needs a namespaced id.
+const columnSortableId = (columnId) => `col-sort-${columnId}`;
+
+// One DndContext handles both card drags and column drags, so collision
+// detection has to be told which one is active: while dragging a column,
+// only other columns should ever be considered as a drop target — otherwise
+// the pointer passing over a card mid-drag would register as "over" that
+// card instead of the column it's actually in.
+const collisionDetectionStrategy = (args) => {
+  if (args.active.data.current?.type === 'column') {
+    const columnContainers = args.droppableContainers.filter(c => c.data.current?.type === 'column');
+    return rectIntersection({ ...args, droppableContainers: columnContainers });
+  }
+  return rectIntersection(args);
+};
 
 export default function BoardDetail({ boardId, onBack }) {
   const [board, setBoard] = useState(null);
@@ -58,7 +76,7 @@ export default function BoardDetail({ boardId, onBack }) {
   // it leaves its source column instead of following the cursor into the
   // next one.
   const handleDragOver = ({ active, over }) => {
-    if (!over) return;
+    if (!over || active.data.current?.type === 'column') return;
 
     const cardId = active.id;
     const sourceColumn = findColumnOf(cardId);
@@ -96,6 +114,27 @@ export default function BoardDetail({ boardId, onBack }) {
   // final order.
   const handleDragEnd = async ({ active, over }) => {
     if (!over) { load(); return; }
+
+    if (active.data.current?.type === 'column') {
+      const activeColumnId = active.data.current.columnId;
+      const overColumnId = over.data.current?.columnId;
+      if (!overColumnId || activeColumnId === overColumnId) return;
+
+      const oldIndex = board.columns.findIndex(c => c._id === activeColumnId);
+      const newIndex = board.columns.findIndex(c => c._id === overColumnId);
+      if (oldIndex === -1 || newIndex === -1) return;
+
+      const finalOrder = arrayMove(board.columns, oldIndex, newIndex);
+      setBoard(prev => ({ ...prev, columns: finalOrder }));
+
+      try {
+        await api.reorderColumns(boardId, finalOrder.map(c => c._id));
+      } catch (e) {
+        setError(e.message);
+        load();
+      }
+      return;
+    }
 
     const cardId = active.id;
     const column = findColumnOf(cardId);
@@ -147,18 +186,25 @@ export default function BoardDetail({ boardId, onBack }) {
         />
         <button type="submit" className="btn-primary">Add column</button>
       </form>
-      <DndContext onDragOver={handleDragOver} onDragEnd={handleDragEnd} onDragCancel={handleDragCancel}>
-        <div className="columns">
-          {board.columns.map(col => (
-            <Column
-              key={col._id}
-              column={col}
-              onChange={load}
-              onDeleteColumn={handleDeleteColumn}
-              onDeleteCard={handleDeleteCard}
-            />
-          ))}
-        </div>
+      <DndContext
+        collisionDetection={collisionDetectionStrategy}
+        onDragOver={handleDragOver}
+        onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
+      >
+        <SortableContext items={board.columns.map(c => columnSortableId(c._id))} strategy={horizontalListSortingStrategy}>
+          <div className="columns">
+            {board.columns.map(col => (
+              <Column
+                key={col._id}
+                column={col}
+                onChange={load}
+                onDeleteColumn={handleDeleteColumn}
+                onDeleteCard={handleDeleteCard}
+              />
+            ))}
+          </div>
+        </SortableContext>
       </DndContext>
     </div>
   );
@@ -167,7 +213,26 @@ export default function BoardDetail({ boardId, onBack }) {
 function Column({ column, onChange, onDeleteColumn, onDeleteCard }) {
   const [title, setTitle] = useState('');
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-  const { setNodeRef, isOver } = useDroppable({ id: column._id });
+  // This id is only for cards being dropped onto the column's empty body —
+  // distinct from the column's own sortable identity below, since dnd-kit
+  // can't register the same id as two separate droppables.
+  const { setNodeRef, isOver } = useDroppable({
+    id: column._id,
+    data: { type: 'column-dropzone', columnId: column._id },
+  });
+  const {
+    setNodeRef: setSortableRef,
+    attributes,
+    listeners,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: columnSortableId(column._id), data: { type: 'column', columnId: column._id } });
+
+  const wrapperStyle = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
 
   const handleAddCard = async (e) => {
     e.preventDefault();
@@ -180,10 +245,10 @@ function Column({ column, onChange, onDeleteColumn, onDeleteCard }) {
   const cardIds = column.cards.map(c => c._id);
 
   return (
-    <div className="column-wrapper">
+    <div ref={setSortableRef} style={wrapperStyle} className={`column-wrapper${isDragging ? ' column-wrapper-dragging' : ''}`}>
       <div ref={setNodeRef} className={`column${isOver ? ' column-over' : ''}`}>
         <div className="column-header">
-          <h3>{column.name}</h3>
+          <h3 className="column-drag-handle" {...attributes} {...listeners}>{column.name}</h3>
           <button onClick={() => setConfirmingDelete(true)} className="btn-ghost btn-small">Delete</button>
         </div>
         {confirmingDelete && (
