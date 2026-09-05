@@ -229,8 +229,13 @@ function Column({ column, onChange, onDeleteColumn, onDeleteCard }) {
     isDragging,
   } = useSortable({ id: columnSortableId(column._id), data: { type: 'column', columnId: column._id } });
 
+  // CSS.Transform includes a scaleX/scaleY meant to smooth transitions
+  // between same-sized siblings — fine for cards (uniform width, similar
+  // height) but columns can have very different heights depending on how
+  // many cards each has, so that scale visibly stretched/squished the
+  // dragged column. CSS.Translate drops the scale and keeps only the move.
   const wrapperStyle = {
-    transform: CSS.Transform.toString(transform),
+    transform: CSS.Translate.toString(transform),
     transition,
   };
 
