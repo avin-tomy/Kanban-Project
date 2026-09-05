@@ -482,7 +482,7 @@ input:focus {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-muted);
-  margin: 20px 0 8px 12px;
+  margin: 20px 0 8px 0;
 }
 
 .sidebar-nav-item {
