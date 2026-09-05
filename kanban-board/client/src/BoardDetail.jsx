@@ -166,6 +166,7 @@ export default function BoardDetail({ boardId, onBack }) {
 
 function Column({ column, onChange, onDeleteColumn, onDeleteCard }) {
   const [title, setTitle] = useState('');
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const { setNodeRef, isOver } = useDroppable({ id: column._id });
 
   const handleAddCard = async (e) => {
@@ -183,8 +184,15 @@ function Column({ column, onChange, onDeleteColumn, onDeleteCard }) {
       <div ref={setNodeRef} className={`column${isOver ? ' column-over' : ''}`}>
         <div className="column-header">
           <h3>{column.name}</h3>
-          <button onClick={() => onDeleteColumn(column._id)} className="btn-ghost btn-small">Delete</button>
+          <button onClick={() => setConfirmingDelete(true)} className="btn-ghost btn-small">Delete</button>
         </div>
+        {confirmingDelete && (
+          <ConfirmDialog
+            message={`Delete column "${column.name}"? This also deletes all its cards.`}
+            onConfirm={() => onDeleteColumn(column._id)}
+            onCancel={() => setConfirmingDelete(false)}
+          />
+        )}
         <SortableContext items={cardIds} strategy={verticalListSortingStrategy}>
           {column.cards.map(card => (
             <Card key={card._id} card={card} columnId={column._id} onDelete={onDeleteCard} onUpdate={onChange} />
