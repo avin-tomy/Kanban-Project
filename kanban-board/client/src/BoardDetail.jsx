@@ -4,6 +4,7 @@ import { SortableContext, useSortable, verticalListSortingStrategy, horizontalLi
 import { CSS } from '@dnd-kit/utilities';
 import { api } from './api';
 import ConfirmDialog from './ConfirmDialog';
+import NotesPanel from './NotesPanel';
 import { getSocket } from './socket';
 
 // Columns get their own sortable identity distinct from their id as a card
@@ -194,26 +195,29 @@ export default function BoardDetail({ boardId, onBack }) {
         />
         <button type="submit" className="btn-primary">Add column</button>
       </form>
-      <DndContext
-        collisionDetection={collisionDetectionStrategy}
-        onDragOver={handleDragOver}
-        onDragEnd={handleDragEnd}
-        onDragCancel={handleDragCancel}
-      >
-        <SortableContext items={board.columns.map(c => columnSortableId(c._id))} strategy={horizontalListSortingStrategy}>
-          <div className="columns">
-            {board.columns.map(col => (
-              <Column
-                key={col._id}
-                column={col}
-                onChange={load}
-                onDeleteColumn={handleDeleteColumn}
-                onDeleteCard={handleDeleteCard}
-              />
-            ))}
-          </div>
-        </SortableContext>
-      </DndContext>
+      <div className="board-body">
+        <DndContext
+          collisionDetection={collisionDetectionStrategy}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+          onDragCancel={handleDragCancel}
+        >
+          <SortableContext items={board.columns.map(c => columnSortableId(c._id))} strategy={horizontalListSortingStrategy}>
+            <div className="columns">
+              {board.columns.map(col => (
+                <Column
+                  key={col._id}
+                  column={col}
+                  onChange={load}
+                  onDeleteColumn={handleDeleteColumn}
+                  onDeleteCard={handleDeleteCard}
+                />
+              ))}
+            </div>
+          </SortableContext>
+        </DndContext>
+        <NotesPanel boardId={boardId} />
+      </div>
     </div>
   );
 }
@@ -319,6 +323,14 @@ function Column({ column, onChange, onDeleteColumn, onDeleteCard }) {
 
   return (
     <div ref={setSortableRef} style={wrapperStyle} className={`column-wrapper${isDragging ? ' column-wrapper-dragging' : ''}`}>
+      <form onSubmit={handleAddCard} className="inline-form add-card-form">
+        <input
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          placeholder="New card title"
+        />
+        <button type="submit" className="btn-primary btn-small">Add</button>
+      </form>
       <div ref={setNodeRef} className={`column${isOver ? ' column-over' : ''}`}>
         <div className="column-header">
           <h3 className="column-drag-handle" {...attributes} {...listeners}>{column.name}</h3>
@@ -337,14 +349,6 @@ function Column({ column, onChange, onDeleteColumn, onDeleteCard }) {
           ))}
         </SortableContext>
       </div>
-      <form onSubmit={handleAddCard} className="inline-form add-card-form">
-        <input
-          value={title}
-          onChange={e => setTitle(e.target.value)}
-          placeholder="New card title"
-        />
-        <button type="submit" className="btn-primary btn-small">Add</button>
-      </form>
     </div>
   );
 }

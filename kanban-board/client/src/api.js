@@ -66,4 +66,11 @@ export const api = {
   updateCard: (cardId, changes) =>
     request(`/cards/${cardId}`, { method: 'PATCH', body: JSON.stringify(changes) }),
   deleteCard: (cardId) => request(`/cards/${cardId}`, { method: 'DELETE' }),
+
+  getNotes: (boardId) => request(`/boards/${boardId}/notes`),
+  createNote: (boardId, text) =>
+    request(`/boards/${boardId}/notes`, { method: 'POST', body: JSON.stringify({ text }) }),
+  deleteNote: (noteId) => request(`/notes/${noteId}`, { method: 'DELETE' }),
+  toggleReaction: (noteId, emoji) =>
+    request(`/notes/${noteId}/reactions`, { method: 'POST', body: JSON.stringify({ emoji }) }),
 };

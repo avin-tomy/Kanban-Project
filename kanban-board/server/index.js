@@ -18,6 +18,7 @@ const teamsRouter = require('./routes/teams');
 const boardsRouter = require('./routes/boards');
 const columnsRouter = require('./routes/columns');
 const cardsRouter = require('./routes/cards');
+const notesRouter = require('./routes/notes');
 
 const app = express();
 const corsOptions = { origin: process.env.CLIENT_ORIGIN || '*' };
@@ -33,6 +34,7 @@ app.use('/teams', requireAuth, teamsRouter);
 app.use('/', boardsRouter);
 app.use('/', columnsRouter);
 app.use('/', cardsRouter);
+app.use('/', notesRouter);
 
 // In production, this same service also serves the built React app, so the
 // client and API share one origin/deployment (no separate static host, no

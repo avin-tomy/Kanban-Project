@@ -223,6 +223,8 @@ input:focus {
   position: fixed;
   top: 24px;
   left: calc(var(--sidebar-width) + 24px);
+  background: var(--surface);
+  color: var(--text);
 }
 
 /* --- Presence: who currently has this board open --- */
@@ -335,10 +337,212 @@ input:focus {
   white-space: nowrap;
 }
 
+.board-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+}
+
 .columns {
   display: flex;
   gap: 16px;
   align-items: flex-start;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+/* --- Notes: shared per-board notes feed, side panel next to the columns --- */
+.notes-panel {
+  width: 460px;
+  flex-shrink: 0;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.notes-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.notes-panel-collapsed {
+  flex-shrink: 0;
+  width: auto;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  color: var(--text-muted);
+}
+
+.notes-panel-collapsed:hover {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.notes-collapsed-label {
+  writing-mode: horizontal-tb;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.notes-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0 16px 0;
+}
+
+.notes-form textarea {
+  width: 100%;
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--text);
+  resize: vertical;
+}
+
+.notes-form textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.notes-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.note-item {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 28px 10px 12px;
+  max-width: 85%;
+  cursor: pointer;
+}
+
+/* Messaging-app convention: your own notes sit on the right, everyone
+   else's on the left — makes it easy to scan who said what at a glance. */
+.note-item-own {
+  align-self: flex-end;
+  background: rgba(91, 141, 239, 0.15);
+  border-color: var(--accent);
+}
+
+.note-item-other {
+  align-self: flex-start;
+}
+
+.note-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.note-author {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.note-time {
+  font-size: 11px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.note-text {
+  margin: 0;
+  font-size: 13px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.note-item .icon-btn {
+  position: absolute;
+  top: 6px;
+  right: 4px;
+}
+
+.reaction-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.reaction-pill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.reaction-pill:hover {
+  border-color: var(--accent);
+}
+
+.reaction-pill-active {
+  background: rgba(91, 141, 239, 0.2);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.reaction-picker {
+  /* A separate chip straddling the note's own bottom border — not part of
+     the note box's background/padding, just anchored to it. .note-item is
+     the positioned ancestor (position: relative). */
+  position: absolute;
+  bottom: 0;
+  left: 12px;
+  transform: translateY(50%);
+  z-index: 5;
+  display: flex;
+  gap: 4px;
+  width: fit-content;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 6px 8px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.reaction-picker button {
+  background: none;
+  border: none;
+  font-size: 16px;
+  padding: 2px;
+  border-radius: var(--radius);
+}
+
+.reaction-picker button:hover {
+  background: var(--surface-sunken);
 }
 
 .column-wrapper {
@@ -354,7 +558,7 @@ input:focus {
 }
 
 .add-card-form {
-  margin: 10px 0 0 0;
+  margin: 0 0 28px 0;
 }
 
 .column-header {
@@ -742,6 +946,21 @@ input:focus {
 
   .column-wrapper {
     width: calc(50% - 8px);
+  }
+
+  /* Side-by-side doesn't fit a narrow screen — notes drop below the columns
+     instead, full width. */
+  .board-body {
+    flex-direction: column;
+  }
+
+  .notes-panel {
+    width: 100%;
+  }
+
+  .notes-panel-collapsed {
+    width: 100%;
+    padding: 12px;
   }
 }
 
