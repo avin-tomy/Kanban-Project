@@ -15,7 +15,14 @@ export default function Sidebar({ teams, currentTeamId, onSwitchTeam, onCreateTe
 
   return (
     <nav className="sidebar">
-      <div className="sidebar-logo">Kanban</div>
+      <div className="sidebar-logo">
+        <svg className="sidebar-logo-icon" width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <rect x="1.5" y="3" width="4.5" height="14" rx="1.75" fill="var(--accent)" />
+          <rect x="7.75" y="3" width="4.5" height="9" rx="1.75" fill="var(--accent)" opacity="0.7" />
+          <rect x="14" y="3" width="4.5" height="11" rx="1.75" fill="var(--accent)" opacity="0.45" />
+        </svg>
+        <span>Kanban</span>
+      </div>
 
       <div className="sidebar-section-label">Team</div>
       <ul className="sidebar-nav">

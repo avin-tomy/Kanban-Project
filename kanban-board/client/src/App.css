@@ -39,6 +39,14 @@ body {
   font-weight: 700;
   font-size: 18px;
   margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding-left: 8px;
+}
+
+.sidebar-logo-icon {
+  flex-shrink: 0;
 }
 
 .sidebar-nav {
