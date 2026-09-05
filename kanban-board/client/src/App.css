@@ -490,12 +490,12 @@ input:focus {
 }
 
 .sidebar-create-team-btn {
-  margin: 4px 12px 0 12px;
+  margin: 12px 12px 0 12px;
   width: calc(100% - 24px);
 }
 
 .sidebar-create-team-form {
-  margin: 4px 12px 0 12px;
+  margin: 12px 12px 0 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
