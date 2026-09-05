@@ -269,6 +269,12 @@ input:focus {
   cursor: grab;
   flex: 1;
   min-width: 0;
+  /* Without this, touch browsers treat a finger-drag on this element as a
+     scroll/pan gesture and cancel dnd-kit's own tracking before a drag can
+     even start — this is what makes dragging "not work" on mobile. */
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .card {
@@ -287,6 +293,9 @@ input:focus {
 
 .card-drag-handle {
   cursor: grab;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .card-title {
