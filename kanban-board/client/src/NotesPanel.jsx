@@ -30,7 +30,7 @@ export default function NotesPanel({ boardId }) {
   const [text, setText] = useState('');
   const [error, setError] = useState('');
   const [confirmingId, setConfirmingId] = useState(null);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
   const [pickerNoteId, setPickerNoteId] = useState(null);
   const listRef = useRef(null);
   const prevCountRef = useRef(0);
