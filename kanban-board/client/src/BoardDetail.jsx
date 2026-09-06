@@ -8,6 +8,7 @@ import NotesPanel from './NotesPanel';
 import ActivityLog from './ActivityLog';
 import { getSocket } from './socket';
 import { dueDateStatus, isPastDue, daysLeftLabel } from './dateUtils';
+import { useAuth } from './auth/AuthContext';
 
 // Columns get their own sortable identity distinct from their id as a card
 // drop-zone (see the Column component) — dnd-kit can't register the same id
@@ -115,11 +116,12 @@ export default function BoardDetail({ boardId, onBack }) {
   // server for before showing it.
   const handleAssignCard = async (cardId, assigneeId) => {
     const assigneeName = assigneeId ? (teamMembers.find(m => m._id === assigneeId)?.name ?? null) : null;
+    const assignedAt = assigneeId ? new Date().toISOString() : null;
     setBoard(prev => ({
       ...prev,
       columns: prev.columns.map(col => ({
         ...col,
-        cards: col.cards.map(c => (c._id === cardId ? { ...c, assigneeId, assigneeName } : c)),
+        cards: col.cards.map(c => (c._id === cardId ? { ...c, assigneeId, assigneeName, assignedAt } : c)),
       })),
     }));
 
@@ -271,6 +273,8 @@ export default function BoardDetail({ boardId, onBack }) {
 
   if (!board) return <p>{error || 'Loading...'}</p>;
 
+  const canManage = board.role === 'owner' || board.role === 'co_owner';
+
   return (
     <div className="board-detail">
       <button onClick={onBack} className="back-button btn-ghost btn-small">&larr; Back to boards</button>
@@ -282,14 +286,16 @@ export default function BoardDetail({ boardId, onBack }) {
         </div>
       </div>
       {error && <p className="error">{error}</p>}
-      <form onSubmit={handleAddColumn} className="inline-form">
-        <input
-          value={newColumnName}
-          onChange={e => setNewColumnName(e.target.value)}
-          placeholder="New column name"
-        />
-        <button type="submit" className="btn-primary">Add column</button>
-      </form>
+      {canManage && (
+        <form onSubmit={handleAddColumn} className="inline-form">
+          <input
+            value={newColumnName}
+            onChange={e => setNewColumnName(e.target.value)}
+            placeholder="New column name"
+          />
+          <button type="submit" className="btn-primary">Add column</button>
+        </form>
+      )}
       <div className="board-body">
         <DndContext
           collisionDetection={collisionDetectionStrategy}
@@ -311,6 +317,7 @@ export default function BoardDetail({ boardId, onBack }) {
                   onSetDueDate={handleSetDueDate}
                   onSetStatus={handleSetStatus}
                   teamMembers={teamMembers}
+                  role={board.role}
                 />
               ))}
             </div>
@@ -382,9 +389,11 @@ function PresenceList({ users }) {
   );
 }
 
-function Column({ column, onChange, onAddCard, onDeleteColumn, onDeleteCard, onAssignCard, onSetDueDate, onSetStatus, teamMembers }) {
+function Column({ column, onChange, onAddCard, onDeleteColumn, onDeleteCard, onAssignCard, onSetDueDate, onSetStatus, teamMembers, role }) {
   const [title, setTitle] = useState('');
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const canManage = role === 'owner' || role === 'co_owner';
+  const isOwner = role === 'owner';
   // This id is only for cards being dropped onto the column's empty body —
   // distinct from the column's own sortable identity below, since dnd-kit
   // can't register the same id as two separate droppables.
@@ -422,18 +431,28 @@ function Column({ column, onChange, onAddCard, onDeleteColumn, onDeleteCard, onA
 
   return (
     <div ref={setSortableRef} style={wrapperStyle} className={`column-wrapper${isDragging ? ' column-wrapper-dragging' : ''}`}>
-      <form onSubmit={handleAddCard} className="inline-form add-card-form">
-        <input
-          value={title}
-          onChange={e => setTitle(e.target.value)}
-          placeholder="New card title"
-        />
-        <button type="submit" className="btn-primary btn-small">Add</button>
-      </form>
+      {canManage && (
+        <form onSubmit={handleAddCard} className="inline-form add-card-form">
+          <input
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            placeholder="New card title"
+          />
+          <button type="submit" className="btn-primary btn-small">Add</button>
+        </form>
+      )}
       <div ref={setNodeRef} className={`column${isOver ? ' column-over' : ''}`}>
         <div className="column-header">
-          <h3 className="column-drag-handle" {...attributes} {...listeners}>{column.name}</h3>
-          <button onClick={() => setConfirmingDelete(true)} className="btn-ghost btn-ghost-danger btn-small">Delete</button>
+          <h3
+            className={canManage ? 'column-drag-handle' : ''}
+            {...(canManage ? attributes : {})}
+            {...(canManage ? listeners : {})}
+          >
+            {column.name}
+          </h3>
+          {isOwner && (
+            <button onClick={() => setConfirmingDelete(true)} className="btn-ghost btn-ghost-danger btn-small">Delete</button>
+          )}
         </div>
         {confirmingDelete && (
           <ConfirmDialog
@@ -454,6 +473,7 @@ function Column({ column, onChange, onAddCard, onDeleteColumn, onDeleteCard, onA
               onSetDueDate={onSetDueDate}
               onSetStatus={onSetStatus}
               teamMembers={teamMembers}
+              role={role}
             />
           ))}
         </SortableContext>
@@ -466,7 +486,10 @@ const STATUS_LABELS = { not_started: 'Not started', working: 'Working', complete
 
 const formatCreatedDate = (iso) => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: '2-digit' });
 
-function Card({ card, columnId, onDelete, onUpdate, onAssign, onSetDueDate, onSetStatus, teamMembers }) {
+const formatAssignedDate = (iso) => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+
+function Card({ card, columnId, onDelete, onUpdate, onAssign, onSetDueDate, onSetStatus, teamMembers, role }) {
+  const { user } = useAuth();
   const [confirming, setConfirming] = useState(false);
   const [editingDesc, setEditingDesc] = useState(false);
   const [descDraft, setDescDraft] = useState(card.description);
@@ -476,6 +499,11 @@ function Card({ card, columnId, onDelete, onUpdate, onAssign, onSetDueDate, onSe
     id: card._id,
     data: { columnId },
   });
+
+  const canManage = role === 'owner' || role === 'co_owner';
+  const isOwner = role === 'owner';
+  const isAssignedToMe = card.assigneeId && user && String(card.assigneeId) === String(user._id);
+  const canChangeStatus = canManage || isAssignedToMe;
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -503,13 +531,18 @@ function Card({ card, columnId, onDelete, onUpdate, onAssign, onSetDueDate, onSe
       className={`card${isDragging ? ' card-dragging' : ''}${missedDeadline ? ' card-missed-deadline' : ''}${isCompleted ? ' card-completed' : ''}`}
     >
       <div className="card-header-row">
-        <div className="card-drag-handle" {...listeners} {...attributes}>
+        <div
+          className={canManage ? 'card-drag-handle' : ''}
+          {...(canManage ? listeners : {})}
+          {...(canManage ? attributes : {})}
+        >
           <p className="card-title">{card.title}</p>
         </div>
         <select
           className={`card-status card-status-${card.status || 'not_started'}`}
           value={card.status || 'not_started'}
           onChange={(e) => onSetStatus(card._id, e.target.value)}
+          disabled={!canChangeStatus}
           aria-label="Card status"
         >
           {Object.entries(STATUS_LABELS).map(([value, label]) => (
@@ -525,7 +558,7 @@ function Card({ card, columnId, onDelete, onUpdate, onAssign, onSetDueDate, onSe
           {card.description}
         </p>
       )}
-      {editingDesc && (
+      {editingDesc && canManage && (
         <div className="card-desc-edit">
           <textarea
             value={descDraft}
@@ -545,6 +578,7 @@ function Card({ card, columnId, onDelete, onUpdate, onAssign, onSetDueDate, onSe
             <button
               className="card-assignee-trigger"
               onClick={() => setAssigneeMenuOpen(o => !o)}
+              disabled={!canManage}
               aria-label={card.assigneeName ? `Assigned to ${card.assigneeName}` : 'Assign this card'}
             >
               {card.assigneeId ? (
@@ -554,7 +588,12 @@ function Card({ card, columnId, onDelete, onUpdate, onAssign, onSetDueDate, onSe
               ) : (
                 <span className="card-assignee-empty">+</span>
               )}
-              {card.assigneeName && <span className="reaction-tooltip card-assignee-tooltip">{card.assigneeName}</span>}
+              {card.assigneeName && (
+                <span className="reaction-tooltip card-assignee-tooltip">
+                  Assigned to {card.assigneeName}
+                  {card.assignedAt && ` on ${formatAssignedDate(card.assignedAt)}`}
+                </span>
+              )}
             </button>
             {assigneeMenuOpen && (
               <>
@@ -583,18 +622,23 @@ function Card({ card, columnId, onDelete, onUpdate, onAssign, onSetDueDate, onSe
             )}
           </div>
           {card.createdAt && (
-            <span className="card-created-date" title={`Created ${new Date(card.createdAt).toLocaleString()}`}>
+            <span className="card-created-date">
               {formatCreatedDate(card.createdAt)}
+              <span className="reaction-tooltip card-created-tooltip">Card creation date</span>
             </span>
           )}
-          <input
-            type="date"
-            className={`card-due-date ${dueDateStatus(card.dueDate)}`}
-            value={card.dueDate ? card.dueDate.slice(0, 10) : ''}
-            min={card.createdAt ? card.createdAt.slice(0, 10) : undefined}
-            onChange={(e) => onSetDueDate(card._id, e.target.value || null)}
-            aria-label="Due date"
-          />
+          <span className="card-due-date-wrap">
+            <input
+              type="date"
+              className={`card-due-date ${dueDateStatus(card.dueDate)}`}
+              value={card.dueDate ? card.dueDate.slice(0, 10) : ''}
+              min={card.createdAt ? card.createdAt.slice(0, 10) : undefined}
+              onChange={(e) => onSetDueDate(card._id, e.target.value || null)}
+              disabled={!canManage}
+              aria-label="Due date"
+            />
+            <span className="reaction-tooltip card-due-tooltip">Due date</span>
+          </span>
           {card.dueDate && (
             <span className={`card-days-left ${dueDateStatus(card.dueDate)}`}>
               {daysLeftLabel(card.dueDate)}
@@ -602,10 +646,14 @@ function Card({ card, columnId, onDelete, onUpdate, onAssign, onSetDueDate, onSe
           )}
         </div>
         <div className="card-actions-row">
-          <button onClick={startEditing} className="btn-ghost btn-small">
-            {card.description ? 'Edit description' : 'Add description'}
-          </button>
-          <button onClick={() => setConfirming(true)} className="icon-btn" aria-label="Delete card">&times;</button>
+          {canManage && (
+            <button onClick={startEditing} className="btn-ghost btn-small">
+              {card.description ? 'Edit description' : 'Add description'}
+            </button>
+          )}
+          {isOwner && (
+            <button onClick={() => setConfirming(true)} className="icon-btn" aria-label="Delete card">&times;</button>
+          )}
         </div>
       </div>
       {confirming && (

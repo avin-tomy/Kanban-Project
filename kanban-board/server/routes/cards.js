@@ -5,13 +5,14 @@ const Card = require('../models/Card');
 const TeamMember = require('../models/TeamMember');
 const User = require('../models/User');
 const { requireAuth } = require('../middleware/auth');
-const { requireColumnAccess, requireCardAccess } = require('../middleware/teamAccess');
+const { requireColumnAccess, requireCardAccess, requireManagerRole, requireOwnerRole } = require('../middleware/teamAccess');
 const logActivity = require('../utils/activityLog');
 
 const STATUS_LABELS = { not_started: 'Not started', working: 'Working', completed: 'Completed' };
 
-// POST /columns/:columnId/cards — create a card inside a column
-router.post('/columns/:columnId/cards', requireAuth, requireColumnAccess, async (req, res) => {
+// POST /columns/:columnId/cards — create a card inside a column. Owner or
+// co-owner only.
+router.post('/columns/:columnId/cards', requireAuth, requireColumnAccess, requireManagerRole, async (req, res) => {
   const column = req.column;
 
   const { title, description } = req.body;
@@ -43,6 +44,19 @@ router.get('/columns/:columnId/cards', requireAuth, requireColumnAccess, async (
 // no separate "move" endpoint needed, because the card's column is just a field.
 router.patch('/cards/:id', requireAuth, requireCardAccess, async (req, res) => {
   const card = req.card;
+
+  // A plain member's access is scoped to exactly one thing: flipping the
+  // status of a card assigned to them. Anything else — editing any other
+  // field, or touching a card that isn't theirs — is owner/co-owner only.
+  if (req.role === 'member') {
+    const onlyStatus = Object.keys(req.body).every(key => key === 'status');
+    if (!onlyStatus) {
+      return res.status(403).json({ error: 'Members can only change the status of cards assigned to them' });
+    }
+    if (String(card.assigneeId || '') !== String(req.userId)) {
+      return res.status(403).json({ error: 'You can only change the status of cards assigned to you' });
+    }
+  }
 
   const { title, description, columnId, position, assigneeId, dueDate, status } = req.body;
   if (columnId !== undefined && columnId !== String(card.columnId)) {
@@ -106,7 +120,10 @@ router.patch('/cards/:id', requireAuth, requireCardAccess, async (req, res) => {
   if (description !== undefined) card.description = description;
   if (columnId !== undefined) card.columnId = columnId;
   if (position !== undefined) card.position = position;
-  if (assigneeId !== undefined) card.assigneeId = assigneeId;
+  if (assigneeId !== undefined) {
+    card.assigneeId = assigneeId;
+    card.assignedAt = assigneeId ? new Date() : null;
+  }
   if (dueDate !== undefined) card.dueDate = dueDate;
   if (status !== undefined) card.status = status;
   await card.save();
@@ -117,8 +134,8 @@ router.patch('/cards/:id', requireAuth, requireCardAccess, async (req, res) => {
   res.status(200).json(card);
 });
 
-// DELETE /cards/:id
-router.delete('/cards/:id', requireAuth, requireCardAccess, async (req, res) => {
+// DELETE /cards/:id — owner-only
+router.delete('/cards/:id', requireAuth, requireCardAccess, requireOwnerRole, async (req, res) => {
   const boardId = req.card.boardId;
   const title = req.card.title;
   await req.card.deleteOne();

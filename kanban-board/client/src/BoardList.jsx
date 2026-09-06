@@ -3,7 +3,9 @@ import { api } from './api';
 import ConfirmDialog from './ConfirmDialog';
 import { getSocket } from './socket';
 
-export default function BoardList({ teamId, onOpenBoard }) {
+export default function BoardList({ teamId, onOpenBoard, role }) {
+  const canManage = role === 'owner' || role === 'co_owner';
+  const isOwner = role === 'owner';
   const [boards, setBoards] = useState([]);
   const [name, setName] = useState('');
   const [error, setError] = useState('');
@@ -53,19 +55,23 @@ export default function BoardList({ teamId, onOpenBoard }) {
         <h1>Boards</h1>
       </div>
       {error && <p className="error">{error}</p>}
-      <form onSubmit={handleCreate} className="inline-form">
-        <input
-          value={name}
-          onChange={e => setName(e.target.value)}
-          placeholder="New board name"
-        />
-        <button type="submit" className="btn-primary">Create board</button>
-      </form>
+      {canManage && (
+        <form onSubmit={handleCreate} className="inline-form">
+          <input
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="New board name"
+          />
+          <button type="submit" className="btn-primary">Create board</button>
+        </form>
+      )}
       <ul>
         {boards.map(b => (
           <li key={b._id}>
             <span onClick={() => onOpenBoard(b._id)} className="board-link">{b.name}</span>
-            <button onClick={() => setConfirmingId(b._id)} className="btn-ghost btn-ghost-danger">Delete</button>
+            {isOwner && (
+              <button onClick={() => setConfirmingId(b._id)} className="btn-ghost btn-ghost-danger">Delete</button>
+            )}
           </li>
         ))}
       </ul>

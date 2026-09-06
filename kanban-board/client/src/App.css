@@ -595,6 +595,20 @@ input:focus {
   display: block;
 }
 
+/* Overrides .reaction-tooltip's centered-on-a-small-anchor positioning: the
+   assignee tooltip's text ("Assigned to X on <date>") is much longer than a
+   reactor name, so centering it on a 24px avatar sent it off the left edge
+   of the page for avatars near the left of the screen. Anchoring to the
+   avatar's left edge and letting it wrap keeps it on-screen instead. */
+.card-assignee-tooltip {
+  left: 0;
+  transform: none;
+  white-space: normal;
+  width: max-content;
+  max-width: 220px;
+  line-height: 1.4;
+}
+
 .card-assignee-trigger:hover .card-assignee-tooltip {
   display: block;
 }
@@ -637,7 +651,7 @@ input:focus {
 }
 
 .column-wrapper {
-  width: 250px;
+  width: 360px;
   flex-shrink: 0;
 }
 
@@ -796,6 +810,13 @@ input:focus {
   color: var(--text-muted);
 }
 
+.card-status:disabled,
+.card-due-date:disabled,
+.card-assignee-trigger:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 .card-status.card-status-working {
   border-color: rgba(91, 141, 239, 0.55);
   color: rgba(91, 141, 239, 0.9);
@@ -820,10 +841,25 @@ input:focus {
 }
 
 .card-created-date {
+  position: relative;
   flex-shrink: 0;
   font-size: 11px;
   color: var(--text-muted);
   white-space: nowrap;
+}
+
+.card-created-date:hover .card-created-tooltip {
+  display: block;
+}
+
+.card-due-date-wrap {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.card-due-date-wrap:hover .card-due-tooltip {
+  display: block;
 }
 
 .card-assignee-trigger {
@@ -1313,6 +1349,7 @@ input:focus {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  min-height: 56px;
   background: var(--surface);
   border: 1px solid var(--border);
   padding: 12px 16px;
@@ -1333,6 +1370,82 @@ input:focus {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--accent);
+}
+
+.member-list-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.member-role-select {
+  height: 30px;
+  padding: 6px 12px;
+  font-size: 13px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+}
+
+.member-role-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.member-add-input-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.member-add-input-wrap input {
+  width: 100%;
+}
+
+.member-suggestions {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  z-index: 51;
+  list-style: none;
+  margin: 0;
+  padding: 4px 0;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.member-suggestions button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 8px 14px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.member-suggestions button:hover {
+  background: var(--surface-sunken);
+}
+
+.member-suggestion-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.member-suggestion-email {
+  font-size: 12px;
+  color: var(--text-muted);
 }
 
 .danger-zone {

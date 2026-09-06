@@ -7,6 +7,7 @@ const cardSchema = new mongoose.Schema({
   description: { type: String, default: '' },
   position: { type: Number, required: true },
   assigneeId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
+  assignedAt: { type: Date, default: null },
   dueDate: { type: Date, default: null },
   status: { type: String, enum: ['not_started', 'working', 'completed'], default: 'not_started' },
 }, { timestamps: true });

@@ -44,10 +44,13 @@ export const api = {
   createTeam: (name) => request('/teams', { method: 'POST', body: JSON.stringify({ name }) }),
   deleteTeam: (teamId) => request(`/teams/${teamId}`, { method: 'DELETE' }),
   getTeamMembers: (teamId) => request(`/teams/${teamId}/members`),
+  searchMemberCandidates: (teamId, q) => request(`/teams/${teamId}/members/search?q=${encodeURIComponent(q)}`),
   addTeamMember: (teamId, email) =>
     request(`/teams/${teamId}/members`, { method: 'POST', body: JSON.stringify({ email }) }),
   removeTeamMember: (teamId, userId) =>
     request(`/teams/${teamId}/members/${userId}`, { method: 'DELETE' }),
+  updateMemberRole: (teamId, userId, role) =>
+    request(`/teams/${teamId}/members/${userId}`, { method: 'PATCH', body: JSON.stringify({ role }) }),
 
   getBoards: (teamId) => request(`/teams/${teamId}/boards`),
   createBoard: (teamId, name) =>

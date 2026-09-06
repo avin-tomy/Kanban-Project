@@ -108,7 +108,7 @@ function AuthenticatedApp() {
         ) : selectedBoardId ? (
           <BoardDetail boardId={selectedBoardId} onBack={() => setSelectedBoardId(null)} />
         ) : (
-          <BoardList teamId={currentTeam._id} onOpenBoard={setSelectedBoardId} />
+          <BoardList teamId={currentTeam._id} onOpenBoard={setSelectedBoardId} role={currentTeam.role} />
         )}
       </main>
     </div>

@@ -6,7 +6,7 @@ const Card = require('../models/Card');
 const User = require('../models/User');
 const Activity = require('../models/Activity');
 const { requireAuth } = require('../middleware/auth');
-const { requireBoardAccess, requireTeamMembership } = require('../middleware/teamAccess');
+const { requireBoardAccess, requireTeamMembership, requireTeamManager, requireOwnerRole } = require('../middleware/teamAccess');
 
 // requireAuth is applied per-route (not via router.use/app.use) because these
 // routers are mounted at '/' alongside static file serving and the SPA
@@ -20,8 +20,10 @@ router.get('/teams/:teamId/boards', requireAuth, requireTeamMembership(), async 
   res.status(200).json(boards);
 });
 
-// POST /teams/:teamId/boards — create a new board within a team
-router.post('/teams/:teamId/boards', requireAuth, requireTeamMembership(), async (req, res) => {
+// POST /teams/:teamId/boards — create a new board within a team; owner or
+// co-owner only (creating a board is a management action a plain member
+// can't do — members are limited to changing status on their own cards).
+router.post('/teams/:teamId/boards', requireAuth, requireTeamManager(), async (req, res) => {
   const { name } = req.body;
   if (!name || typeof name !== 'string') {
     return res.status(400).json({ error: 'name is required and must be a string' });
@@ -61,12 +63,15 @@ router.get('/boards/:id/full', requireAuth, requireBoardAccess, async (req, res)
     cards: cardsWithAssignee.filter(c => String(c.columnId) === String(col._id)),
   }));
 
-  res.status(200).json({ ...board.toObject(), columns: columnsWithCards });
+  // The caller's role rides along on this response (rather than the client
+  // trusting a separately-fetched team object) so BoardDetail always reflects
+  // the role the server actually verified for this exact board.
+  res.status(200).json({ ...board.toObject(), role: req.role, columns: columnsWithCards });
 });
 
 // DELETE /boards/:id — deleting a board cascades to its columns and cards,
-// since they can't meaningfully exist without their parent board.
-router.delete('/boards/:id', requireAuth, requireBoardAccess, async (req, res) => {
+// since they can't meaningfully exist without their parent board. Owner-only.
+router.delete('/boards/:id', requireAuth, requireBoardAccess, requireOwnerRole, async (req, res) => {
   const board = req.board;
 
   await Card.deleteMany({ boardId: board._id });

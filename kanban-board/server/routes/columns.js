@@ -3,13 +3,12 @@ const router = express.Router();
 const Column = require('../models/Column');
 const Card = require('../models/Card');
 const { requireAuth } = require('../middleware/auth');
-const { requireBoardAccess, requireColumnAccess } = require('../middleware/teamAccess');
+const { requireBoardAccess, requireColumnAccess, requireManagerRole, requireOwnerRole } = require('../middleware/teamAccess');
 const logActivity = require('../utils/activityLog');
 
-// POST /boards/:boardId/columns — create a column inside a board.
-// Nested under /boards because a column can't exist without a parent board —
-// the URL reflects that ownership, same as /posts/9/comments earlier.
-router.post('/boards/:boardId/columns', requireAuth, requireBoardAccess, async (req, res) => {
+// POST /boards/:boardId/columns — create a column inside a board. Owner or
+// co-owner only.
+router.post('/boards/:boardId/columns', requireAuth, requireBoardAccess, requireManagerRole, async (req, res) => {
   const board = req.board;
 
   const { name } = req.body;
@@ -33,7 +32,7 @@ router.get('/boards/:boardId/columns', requireAuth, requireBoardAccess, async (r
 // PUT /boards/:boardId/columns/order — replace the full ordering of columns
 // on this board. Same shape as the card reorder endpoint below: one write for
 // the whole new order instead of one PATCH per column.
-router.put('/boards/:boardId/columns/order', requireAuth, requireBoardAccess, async (req, res) => {
+router.put('/boards/:boardId/columns/order', requireAuth, requireBoardAccess, requireManagerRole, async (req, res) => {
   const board = req.board;
 
   const { columnIds } = req.body;
@@ -60,7 +59,7 @@ router.put('/boards/:boardId/columns/order', requireAuth, requireBoardAccess, as
 // PATCH /columns/:id — partial update (rename, or reorder via position).
 // A single top-level resource from here on — it doesn't need to be re-nested
 // under /boards/:boardId, since its own id is already globally unique.
-router.patch('/columns/:id', requireAuth, requireColumnAccess, async (req, res) => {
+router.patch('/columns/:id', requireAuth, requireColumnAccess, requireManagerRole, async (req, res) => {
   const column = req.column;
 
   const { name, position } = req.body;
@@ -79,7 +78,7 @@ router.patch('/columns/:id', requireAuth, requireColumnAccess, async (req, res) 
 // columnId reassigned here too, so this single call also covers cross-column
 // moves — the source column needs no write at all, since removing an id from
 // its list still leaves the rest in correct relative order.
-router.put('/columns/:id/cards/order', requireAuth, requireColumnAccess, async (req, res) => {
+router.put('/columns/:id/cards/order', requireAuth, requireColumnAccess, requireManagerRole, async (req, res) => {
   const column = req.column;
 
   const { cardIds } = req.body;
@@ -122,8 +121,8 @@ router.put('/columns/:id/cards/order', requireAuth, requireColumnAccess, async (
   res.status(200).json(cards);
 });
 
-// DELETE /columns/:id — cascades to its cards
-router.delete('/columns/:id', requireAuth, requireColumnAccess, async (req, res) => {
+// DELETE /columns/:id — cascades to its cards. Owner-only.
+router.delete('/columns/:id', requireAuth, requireColumnAccess, requireOwnerRole, async (req, res) => {
   const column = req.column;
 
   await Card.deleteMany({ columnId: column._id });
