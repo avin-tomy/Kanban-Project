@@ -5,6 +5,7 @@ import Signup from './auth/Signup';
 import BoardList from './BoardList';
 import BoardDetail from './BoardDetail';
 import TeamMembers from './TeamMembers';
+import MyTasks from './MyTasks';
 import Sidebar from './Sidebar';
 import { api } from './api';
 import './App.css';
@@ -22,7 +23,7 @@ function AuthenticatedApp() {
   const [teams, setTeams] = useState(null);
   const [currentTeamId, setCurrentTeamId] = useState(() => localStorage.getItem(TEAM_STORAGE_KEY));
   const [selectedBoardId, setSelectedBoardId] = useState(null);
-  const [view, setView] = useState('boards'); // 'boards' | 'members'
+  const [view, setView] = useState('boards'); // 'boards' | 'members' | 'myTasks'
   const [error, setError] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -55,6 +56,24 @@ function AuthenticatedApp() {
     setCurrentTeamId(team._id);
   };
 
+  // After deleting the current team, drop back to the boards view and
+  // reload the team list — the effect above then picks a remaining team
+  // (or falls through to the "no teams yet" empty state if none are left).
+  const handleTeamDeleted = async () => {
+    setView('boards');
+    setSelectedBoardId(null);
+    await loadTeams();
+  };
+
+  // My Tasks spans every team, so opening one from there has to switch the
+  // active team first (its board wouldn't otherwise be reachable) before
+  // landing on that specific board.
+  const handleOpenTask = (teamId, boardId) => {
+    setCurrentTeamId(teamId);
+    setSelectedBoardId(boardId);
+    setView('boards');
+  };
+
   if (!teams) return <p style={{ padding: 24 }}>{error || 'Loading…'}</p>;
 
   const currentTeam = teams.find(t => t._id === currentTeamId);
@@ -77,13 +96,15 @@ function AuthenticatedApp() {
         onClose={() => setSidebarOpen(false)}
       />
       <main className="main-content">
-        {!currentTeam ? (
+        {view === 'myTasks' ? (
+          <MyTasks onOpenTask={handleOpenTask} />
+        ) : !currentTeam ? (
           <div className="empty-state">
             <h1>No teams yet</h1>
             <p>Create a team from the sidebar to start adding boards.</p>
           </div>
         ) : view === 'members' ? (
-          <TeamMembers team={currentTeam} />
+          <TeamMembers team={currentTeam} onTeamDeleted={handleTeamDeleted} />
         ) : selectedBoardId ? (
           <BoardDetail boardId={selectedBoardId} onBack={() => setSelectedBoardId(null)} />
         ) : (

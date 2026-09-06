@@ -19,6 +19,7 @@ const boardsRouter = require('./routes/boards');
 const columnsRouter = require('./routes/columns');
 const cardsRouter = require('./routes/cards');
 const notesRouter = require('./routes/notes');
+const meRouter = require('./routes/me');
 
 const app = express();
 const corsOptions = { origin: process.env.CLIENT_ORIGIN || '*' };
@@ -27,6 +28,7 @@ app.use(express.json());
 
 app.use('/auth', authRouter);
 app.use('/teams', requireAuth, teamsRouter);
+app.use('/me', requireAuth, meRouter);
 // boards/columns/cards apply requireAuth per-route (inside each router) rather
 // than here, because they're mounted at '/' alongside static file serving and
 // the SPA fallback below — a blanket middleware at this mount point would run

@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Column = require('../models/Column');
 const Card = require('../models/Card');
+const TeamMember = require('../models/TeamMember');
 const { requireAuth } = require('../middleware/auth');
 const { requireColumnAccess, requireCardAccess } = require('../middleware/teamAccess');
 
@@ -38,7 +39,7 @@ router.get('/columns/:columnId/cards', requireAuth, requireColumnAccess, async (
 router.patch('/cards/:id', requireAuth, requireCardAccess, async (req, res) => {
   const card = req.card;
 
-  const { title, description, columnId, position } = req.body;
+  const { title, description, columnId, position, assigneeId, dueDate, status } = req.body;
   if (columnId !== undefined && columnId !== String(card.columnId)) {
     // A card can only move within its own board — changing columnId to a
     // column on another board would let it cross a team boundary one PATCH
@@ -48,10 +49,27 @@ router.patch('/cards/:id', requireAuth, requireCardAccess, async (req, res) => {
       return res.status(400).json({ error: 'columnId must belong to a column on the same board as this card' });
     }
   }
+  if (assigneeId !== undefined && assigneeId !== null) {
+    // Can only assign to someone who's actually a member of this board's
+    // team — otherwise a card could point at a user with no access to it.
+    const isMember = await TeamMember.exists({ teamId: req.board.teamId, userId: assigneeId });
+    if (!isMember) {
+      return res.status(400).json({ error: 'assigneeId must be a member of this board\'s team' });
+    }
+  }
+  if (dueDate !== undefined && dueDate !== null && Number.isNaN(new Date(dueDate).getTime())) {
+    return res.status(400).json({ error: 'dueDate must be a valid date or null' });
+  }
+  if (status !== undefined && !['not_started', 'working', 'completed'].includes(status)) {
+    return res.status(400).json({ error: 'status must be one of not_started, working, completed' });
+  }
   if (title !== undefined) card.title = title;
   if (description !== undefined) card.description = description;
   if (columnId !== undefined) card.columnId = columnId;
   if (position !== undefined) card.position = position;
+  if (assigneeId !== undefined) card.assigneeId = assigneeId;
+  if (dueDate !== undefined) card.dueDate = dueDate;
+  if (status !== undefined) card.status = status;
   await card.save();
   req.app.get('io').to(`board:${card.boardId}`).emit('board:changed', { boardId: card.boardId, kind: 'card-updated' });
   res.status(200).json(card);

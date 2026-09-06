@@ -6,6 +6,7 @@ import { api } from './api';
 import ConfirmDialog from './ConfirmDialog';
 import NotesPanel from './NotesPanel';
 import { getSocket } from './socket';
+import { dueDateStatus, isPastDue } from './dateUtils';
 
 // Columns get their own sortable identity distinct from their id as a card
 // drop-zone (see the Column component) — dnd-kit can't register the same id
@@ -30,10 +31,18 @@ export default function BoardDetail({ boardId, onBack }) {
   const [newColumnName, setNewColumnName] = useState('');
   const [error, setError] = useState('');
   const [presentUsers, setPresentUsers] = useState([]);
+  const [teamMembers, setTeamMembers] = useState([]);
 
   const load = () => api.getBoardFull(boardId).then(setBoard).catch(e => setError(e.message));
 
   useEffect(() => { load(); }, [boardId]);
+
+  // Card assignment needs the board's own team roster (who's even eligible
+  // to be assigned) — fetched once the board tells us which team it's in.
+  useEffect(() => {
+    if (!board?.teamId) return;
+    api.getTeamMembers(board.teamId).then(setTeamMembers).catch(() => {});
+  }, [board?.teamId]);
 
   // Live updates: any column/card change another team member makes to this
   // board refreshes it here too, without a manual reload. The server also
@@ -94,6 +103,61 @@ export default function BoardDetail({ boardId, onBack }) {
           ? { ...col, cards: col.cards.map(c => (c._id === tempId ? created : c)) }
           : col)),
       }));
+    } catch (e) {
+      setError(e.message);
+      load();
+    }
+  };
+
+  // Optimistic, same as handleAddCard: we already know the assignee's name
+  // (from the fetched team roster), so there's nothing to wait on the
+  // server for before showing it.
+  const handleAssignCard = async (cardId, assigneeId) => {
+    const assigneeName = assigneeId ? (teamMembers.find(m => m._id === assigneeId)?.name ?? null) : null;
+    setBoard(prev => ({
+      ...prev,
+      columns: prev.columns.map(col => ({
+        ...col,
+        cards: col.cards.map(c => (c._id === cardId ? { ...c, assigneeId, assigneeName } : c)),
+      })),
+    }));
+
+    try {
+      await api.updateCard(cardId, { assigneeId });
+    } catch (e) {
+      setError(e.message);
+      load();
+    }
+  };
+
+  const handleSetDueDate = async (cardId, dueDate) => {
+    setBoard(prev => ({
+      ...prev,
+      columns: prev.columns.map(col => ({
+        ...col,
+        cards: col.cards.map(c => (c._id === cardId ? { ...c, dueDate } : c)),
+      })),
+    }));
+
+    try {
+      await api.updateCard(cardId, { dueDate });
+    } catch (e) {
+      setError(e.message);
+      load();
+    }
+  };
+
+  const handleSetStatus = async (cardId, status) => {
+    setBoard(prev => ({
+      ...prev,
+      columns: prev.columns.map(col => ({
+        ...col,
+        cards: col.cards.map(c => (c._id === cardId ? { ...c, status } : c)),
+      })),
+    }));
+
+    try {
+      await api.updateCard(cardId, { status });
     } catch (e) {
       setError(e.message);
       load();
@@ -239,6 +303,10 @@ export default function BoardDetail({ boardId, onBack }) {
                   onAddCard={handleAddCard}
                   onDeleteColumn={handleDeleteColumn}
                   onDeleteCard={handleDeleteCard}
+                  onAssignCard={handleAssignCard}
+                  onSetDueDate={handleSetDueDate}
+                  onSetStatus={handleSetStatus}
+                  teamMembers={teamMembers}
                 />
               ))}
             </div>
@@ -310,7 +378,7 @@ function PresenceList({ users }) {
   );
 }
 
-function Column({ column, onChange, onAddCard, onDeleteColumn, onDeleteCard }) {
+function Column({ column, onChange, onAddCard, onDeleteColumn, onDeleteCard, onAssignCard, onSetDueDate, onSetStatus, teamMembers }) {
   const [title, setTitle] = useState('');
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   // This id is only for cards being dropped onto the column's empty body —
@@ -372,7 +440,17 @@ function Column({ column, onChange, onAddCard, onDeleteColumn, onDeleteCard }) {
         )}
         <SortableContext items={cardIds} strategy={verticalListSortingStrategy}>
           {column.cards.map(card => (
-            <Card key={card._id} card={card} columnId={column._id} onDelete={onDeleteCard} onUpdate={onChange} />
+            <Card
+              key={card._id}
+              card={card}
+              columnId={column._id}
+              onDelete={onDeleteCard}
+              onUpdate={onChange}
+              onAssign={onAssignCard}
+              onSetDueDate={onSetDueDate}
+              onSetStatus={onSetStatus}
+              teamMembers={teamMembers}
+            />
           ))}
         </SortableContext>
       </div>
@@ -380,10 +458,13 @@ function Column({ column, onChange, onAddCard, onDeleteColumn, onDeleteCard }) {
   );
 }
 
-function Card({ card, columnId, onDelete, onUpdate }) {
+const STATUS_LABELS = { not_started: 'Not started', working: 'Working', completed: 'Completed' };
+
+function Card({ card, columnId, onDelete, onUpdate, onAssign, onSetDueDate, onSetStatus, teamMembers }) {
   const [confirming, setConfirming] = useState(false);
   const [editingDesc, setEditingDesc] = useState(false);
   const [descDraft, setDescDraft] = useState(card.description);
+  const [assigneeMenuOpen, setAssigneeMenuOpen] = useState(false);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: card._id,
     data: { columnId },
@@ -405,15 +486,30 @@ function Card({ card, columnId, onDelete, onUpdate }) {
     onUpdate();
   };
 
+  const missedDeadline = isPastDue(card.dueDate) && card.status !== 'completed';
+  const isCompleted = card.status === 'completed';
+
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`card${isDragging ? ' card-dragging' : ''}`}
+      className={`card${isDragging ? ' card-dragging' : ''}${missedDeadline ? ' card-missed-deadline' : ''}${isCompleted ? ' card-completed' : ''}`}
     >
-      <div className="card-drag-handle" {...listeners} {...attributes}>
-        <p className="card-title">{card.title}</p>
-        {card.description && !editingDesc && <p className="card-description">{card.description}</p>}
+      <div className="card-header-row">
+        <div className="card-drag-handle" {...listeners} {...attributes}>
+          <p className="card-title">{card.title}</p>
+          {card.description && !editingDesc && <p className="card-description">{card.description}</p>}
+        </div>
+        <select
+          className={`card-status card-status-${card.status || 'not_started'}`}
+          value={card.status || 'not_started'}
+          onChange={(e) => onSetStatus(card._id, e.target.value)}
+          aria-label="Card status"
+        >
+          {Object.entries(STATUS_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>{label}</option>
+          ))}
+        </select>
       </div>
       {editingDesc && (
         <div className="card-desc-edit">
@@ -430,10 +526,62 @@ function Card({ card, columnId, onDelete, onUpdate }) {
         </div>
       )}
       <div className="card-actions">
-        <button onClick={startEditing} className="btn-ghost btn-small">
-          {card.description ? 'Edit description' : 'Add description'}
-        </button>
-        <button onClick={() => setConfirming(true)} className="icon-btn" aria-label="Delete card">&times;</button>
+        <div className="card-actions-row">
+          <div className="card-assignee">
+            <button
+              className="card-assignee-trigger"
+              onClick={() => setAssigneeMenuOpen(o => !o)}
+              aria-label={card.assigneeName ? `Assigned to ${card.assigneeName}` : 'Assign this card'}
+            >
+              {card.assigneeId ? (
+                <span className="presence-avatar card-assignee-avatar" style={{ background: colorForUserId(card.assigneeId) }}>
+                  {initialsOf(card.assigneeName || '?')}
+                </span>
+              ) : (
+                <span className="card-assignee-empty">+</span>
+              )}
+              {card.assigneeName && <span className="reaction-tooltip card-assignee-tooltip">{card.assigneeName}</span>}
+            </button>
+            {assigneeMenuOpen && (
+              <>
+                <div className="profile-backdrop" onClick={() => setAssigneeMenuOpen(false)} />
+                <div className="card-assignee-menu">
+                  <button
+                    className="card-assignee-option"
+                    onClick={() => { onAssign(card._id, null); setAssigneeMenuOpen(false); }}
+                  >
+                    Unassigned
+                  </button>
+                  {teamMembers.map(m => (
+                    <button
+                      key={m._id}
+                      className="card-assignee-option"
+                      onClick={() => { onAssign(card._id, m._id); setAssigneeMenuOpen(false); }}
+                    >
+                      <span className="presence-avatar card-assignee-avatar" style={{ background: colorForUserId(m._id) }}>
+                        {initialsOf(m.name)}
+                      </span>
+                      {m.name}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+          <input
+            type="date"
+            className={`card-due-date ${dueDateStatus(card.dueDate)}`}
+            value={card.dueDate ? card.dueDate.slice(0, 10) : ''}
+            onChange={(e) => onSetDueDate(card._id, e.target.value || null)}
+            aria-label="Due date"
+          />
+        </div>
+        <div className="card-actions-row">
+          <button onClick={startEditing} className="btn-ghost btn-small">
+            {card.description ? 'Edit description' : 'Add description'}
+          </button>
+          <button onClick={() => setConfirming(true)} className="icon-btn" aria-label="Delete card">&times;</button>
+        </div>
       </div>
       {confirming && (
         <ConfirmDialog

@@ -40,7 +40,9 @@ export const api = {
   me: () => request('/auth/me'),
 
   getMyTeams: () => request('/teams'),
+  getMyAssignedCards: () => request('/me/assigned-cards'),
   createTeam: (name) => request('/teams', { method: 'POST', body: JSON.stringify({ name }) }),
+  deleteTeam: (teamId) => request(`/teams/${teamId}`, { method: 'DELETE' }),
   getTeamMembers: (teamId) => request(`/teams/${teamId}/members`),
   addTeamMember: (teamId, email) =>
     request(`/teams/${teamId}/members`, { method: 'POST', body: JSON.stringify({ email }) }),

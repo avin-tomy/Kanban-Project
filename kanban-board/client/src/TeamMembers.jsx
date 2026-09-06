@@ -3,11 +3,12 @@ import { api } from './api';
 import { getSocket } from './socket';
 import ConfirmDialog from './ConfirmDialog';
 
-export default function TeamMembers({ team }) {
+export default function TeamMembers({ team, onTeamDeleted }) {
   const [members, setMembers] = useState([]);
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [confirmingUserId, setConfirmingUserId] = useState(null);
+  const [confirmingDeleteTeam, setConfirmingDeleteTeam] = useState(false);
 
   const load = () => api.getTeamMembers(team._id).then(setMembers).catch(e => setError(e.message));
 
@@ -44,6 +45,12 @@ export default function TeamMembers({ team }) {
     await api.removeTeamMember(team._id, userId);
     setConfirmingUserId(null);
     load();
+  };
+
+  const handleDeleteTeam = async () => {
+    await api.deleteTeam(team._id);
+    setConfirmingDeleteTeam(false);
+    onTeamDeleted();
   };
 
   const confirmingMember = members.find(m => m._id === confirmingUserId);
@@ -83,11 +90,29 @@ export default function TeamMembers({ team }) {
         ))}
       </ul>
 
+      {isOwner && (
+        <div className="danger-zone">
+          <div>
+            <h3>Delete {team.name}</h3>
+            <p>Permanently removes all its boards, columns, and cards for every member.</p>
+          </div>
+          <button onClick={() => setConfirmingDeleteTeam(true)} className="btn-danger">Delete team</button>
+        </div>
+      )}
+
       {confirmingMember && (
         <ConfirmDialog
           message={`Remove ${confirmingMember.name} from ${team.name}?`}
           onConfirm={() => handleRemove(confirmingMember._id)}
           onCancel={() => setConfirmingUserId(null)}
+        />
+      )}
+
+      {confirmingDeleteTeam && (
+        <ConfirmDialog
+          message={`Delete "${team.name}"? This permanently deletes all its boards, columns, and cards. This cannot be undone.`}
+          onConfirm={handleDeleteTeam}
+          onCancel={() => setConfirmingDeleteTeam(false)}
         />
       )}
     </div>

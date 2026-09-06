@@ -3,6 +3,7 @@ const router = express.Router();
 const Board = require('../models/Board');
 const Column = require('../models/Column');
 const Card = require('../models/Card');
+const User = require('../models/User');
 const { requireAuth } = require('../middleware/auth');
 const { requireBoardAccess, requireTeamMembership } = require('../middleware/teamAccess');
 
@@ -44,9 +45,19 @@ router.get('/boards/:id/full', requireAuth, requireBoardAccess, async (req, res)
   const columns = await Column.find({ boardId: board._id }).sort({ position: 1 });
   const cards = await Card.find({ boardId: board._id }).sort({ position: 1 });
 
+  // Cards only store assigneeId — look up names once for the handful of
+  // distinct assignees on this board, same pattern as note author names.
+  const assigneeIds = [...new Set(cards.filter(c => c.assigneeId).map(c => String(c.assigneeId)))];
+  const assignees = await User.find({ _id: { $in: assigneeIds } });
+  const nameById = new Map(assignees.map(u => [String(u._id), u.name]));
+  const cardsWithAssignee = cards.map(c => ({
+    ...c.toObject(),
+    assigneeName: c.assigneeId ? (nameById.get(String(c.assigneeId)) || 'Unknown') : null,
+  }));
+
   const columnsWithCards = columns.map(col => ({
     ...col.toObject(),
-    cards: cards.filter(c => String(c.columnId) === String(col._id)),
+    cards: cardsWithAssignee.filter(c => String(c.columnId) === String(col._id)),
   }));
 
   res.status(200).json({ ...board.toObject(), columns: columnsWithCards });

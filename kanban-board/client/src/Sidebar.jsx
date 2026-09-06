@@ -35,6 +35,15 @@ export default function Sidebar({ teams, currentTeamId, onSwitchTeam, onCreateTe
           <button className="sidebar-mobile-close" onClick={onClose} aria-label="Close menu">&times;</button>
         </div>
 
+      <ul className="sidebar-nav">
+        <li
+          className={`sidebar-nav-item${view === 'myTasks' ? ' sidebar-nav-item-active' : ''}`}
+          onClick={() => handleChangeView('myTasks')}
+        >
+          My Tasks
+        </li>
+      </ul>
+
       <div className="sidebar-section-label">Team</div>
       <ul className="sidebar-nav">
         {teams.map(team => (
