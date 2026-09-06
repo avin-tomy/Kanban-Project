@@ -11,6 +11,24 @@
   --danger-hover: #c94940;
   --radius: 5px;
   --sidebar-width: 220px;
+  color-scheme: dark;
+}
+
+/* The attribute selector's higher specificity wins over the bare :root
+   above for every property redeclared here, including color-scheme —
+   ThemeContext just toggles this attribute on <html>, no other JS needed. */
+:root[data-theme="light"] {
+  --bg: #f4f5f7;
+  --surface: #ffffff;
+  --surface-sunken: #edeef1;
+  --border: #d8dbe0;
+  --text: #1a1c1f;
+  --text-muted: #6b6f76;
+  --accent: #3b6fd4;
+  --accent-hover: #2f5bb0;
+  --danger: #d13f37;
+  --danger-hover: #b8352e;
+  color-scheme: light;
 }
 
 * { box-sizing: border-box; }
@@ -219,10 +237,23 @@ input:focus {
   padding-top: 80px;
 }
 
-.back-button {
+/* A solid full-width band behind the fixed back button — without this,
+   scrolled card content has nothing opaque to stop against and shows
+   through the space around the button itself. */
+.board-topbar {
   position: fixed;
-  top: 24px;
-  left: calc(var(--sidebar-width) + 24px);
+  top: 0;
+  left: var(--sidebar-width);
+  right: 0;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  padding-left: 24px;
+  background: var(--bg);
+  z-index: 40;
+}
+
+.back-button {
   background: var(--surface);
   color: var(--text);
 }
@@ -651,7 +682,7 @@ input:focus {
 }
 
 .column-wrapper {
-  width: 360px;
+  width: 334px;
   flex-shrink: 0;
 }
 
@@ -676,7 +707,9 @@ input:focus {
 }
 
 .column-over {
-  background: #1e2836;
+  /* A translucent accent tint instead of a fixed dark navy — reads as a
+     highlighted drop zone on both a dark and a light surface. */
+  background: rgba(91, 141, 239, 0.15);
   border-color: var(--accent);
 }
 
@@ -934,28 +967,13 @@ input:focus {
   padding: 4px 6px;
   font-size: 11px;
   color: var(--text-muted);
-  background: var(--surface-sunken);
+  background: transparent;
   border: 1px solid var(--border);
   border-radius: var(--radius);
 }
 
 .card-due-date:focus {
   color: var(--text);
-}
-
-.card-due-date.card-due-green {
-  border-color: rgba(62, 207, 142, 0.5);
-  color: rgba(62, 207, 142, 0.9);
-}
-
-.card-due-date.card-due-orange {
-  border-color: rgba(224, 138, 60, 0.55);
-  color: rgba(224, 138, 60, 0.9);
-}
-
-.card-due-date.card-due-red {
-  border-color: rgba(229, 83, 75, 0.5);
-  color: rgba(229, 83, 75, 0.9);
 }
 
 .card-days-left {
@@ -970,6 +988,15 @@ input:focus {
 .card-days-left.card-due-red { color: rgba(229, 83, 75, 0.9); }
 
 /* --- My Tasks --- */
+.task-sort-select {
+  padding: 6px 12px;
+  font-size: 13px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+}
+
 .task-list {
   list-style: none;
   padding: 0;
@@ -1006,29 +1033,58 @@ input:focus {
 
 .task-due {
   flex-shrink: 0;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-muted);
-  padding: 4px 10px;
+  padding: 3px 9px;
   border-radius: 999px;
   border: 1px solid var(--border);
   white-space: nowrap;
 }
 
-.task-due.card-due-green {
-  border-color: #3ecf8e;
-  color: #3ecf8e;
+.task-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
-.task-due.card-due-orange {
-  border-color: #e08a3c;
-  color: #e08a3c;
+.task-status {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  white-space: nowrap;
 }
 
-.task-due.card-due-red {
-  border-color: var(--danger);
-  color: var(--danger);
+.task-status.task-status-working {
+  border-color: rgba(91, 141, 239, 0.55);
+  color: rgba(91, 141, 239, 0.9);
 }
+
+.task-status.task-status-completed {
+  border-color: rgba(62, 207, 142, 0.5);
+  color: rgba(62, 207, 142, 0.9);
+}
+
+.task-due-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.task-days-left {
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.task-days-left.card-due-green { color: rgba(62, 207, 142, 0.9); }
+.task-days-left.card-due-orange { color: rgba(224, 138, 60, 0.9); }
+.task-days-left.card-due-red { color: rgba(229, 83, 75, 0.9); }
 
 .confirm-overlay {
   position: fixed;
@@ -1113,7 +1169,7 @@ input:focus {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  min-width: 140px;
+  min-width: 180px;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
   overflow: hidden;
   z-index: 51;
@@ -1137,6 +1193,60 @@ input:focus {
   font-size: 12px;
   border-bottom: 1px solid var(--border);
   margin-bottom: 4px;
+}
+
+.profile-theme-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: default;
+}
+.profile-theme-row:hover { background: transparent; }
+
+.theme-switch {
+  position: relative;
+  display: inline-block;
+  width: 34px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.theme-switch input {
+  position: absolute;
+  opacity: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  cursor: pointer;
+}
+
+.theme-switch-track {
+  position: absolute;
+  inset: 0;
+  background: var(--border);
+  border-radius: 999px;
+  transition: background 0.15s;
+  pointer-events: none;
+}
+
+.theme-switch-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: white;
+  border-radius: 50%;
+  transition: transform 0.15s;
+}
+
+.theme-switch input:checked + .theme-switch-track {
+  background: var(--accent);
+}
+
+.theme-switch input:checked + .theme-switch-track .theme-switch-thumb {
+  transform: translateX(14px);
 }
 
 /* --- Auth screens --- */
@@ -1308,18 +1418,29 @@ input:focus {
     margin-left: 0;
   }
 
-  .back-button {
-    left: 16px;
+  /* The fixed hamburger toggle sits at top:14px/right:14px (54px tall+wide,
+     from the viewport edge) — a page header's right-aligned content (e.g.
+     My Tasks' sort dropdown) would otherwise render directly underneath it.
+     Board view already clears this via its own fixed topbar, so it's
+     excluded below rather than getting double the clearance. */
+  .page-header {
+    margin-top: 48px;
   }
 
-  /* Two columns per row instead of one long horizontally-scrolling row —
-     the third column and beyond wrap down to the next line. */
+  .board-detail .page-header {
+    margin-top: 0;
+  }
+
+  .board-topbar {
+    left: 0;
+    padding-left: 16px;
+  }
+
+  /* Columns wrap to the next line instead of one long horizontally-scrolling
+     row. Column width itself is unchanged from the desktop rule — mobile
+     just fits fewer of them per row. */
   .columns {
     flex-wrap: wrap;
-  }
-
-  .column-wrapper {
-    width: calc(50% - 8px);
   }
 
   /* Side-by-side doesn't fit a narrow screen — notes drop below the columns

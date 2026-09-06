@@ -97,6 +97,12 @@ router.patch('/cards/:id', requireAuth, requireCardAccess, async (req, res) => {
   // below, so each activity line reads like "assigned X to Bob" rather than
   // firing even when a field is PATCHed to the value it already had.
   const activityLines = [];
+  if (title !== undefined && title !== card.title) {
+    activityLines.push(`renamed card "${card.title}" to "${title}"`);
+  }
+  if (description !== undefined && description !== card.description) {
+    activityLines.push(`updated the description of "${card.title}"`);
+  }
   if (assigneeId !== undefined && String(assigneeId || '') !== String(card.assigneeId || '')) {
     if (assigneeId) {
       const assignee = await User.findById(assigneeId);

@@ -277,7 +277,9 @@ export default function BoardDetail({ boardId, onBack }) {
 
   return (
     <div className="board-detail">
-      <button onClick={onBack} className="back-button btn-ghost btn-small">&larr; Back to boards</button>
+      <div className="board-topbar">
+        <button onClick={onBack} className="back-button btn-ghost btn-small">&larr; Back to boards</button>
+      </div>
       <div className="page-header">
         <h1>{board.name}</h1>
         <div className="page-header-actions">
@@ -588,10 +590,14 @@ function Card({ card, columnId, onDelete, onUpdate, onAssign, onSetDueDate, onSe
               ) : (
                 <span className="card-assignee-empty">+</span>
               )}
-              {card.assigneeName && (
+              {card.assigneeName ? (
                 <span className="reaction-tooltip card-assignee-tooltip">
                   Assigned to {card.assigneeName}
                   {card.assignedAt && ` on ${formatAssignedDate(card.assignedAt)}`}
+                </span>
+              ) : (
+                <span className="reaction-tooltip card-assignee-tooltip">
+                  {canManage ? 'Click to assign' : 'Unassigned'}
                 </span>
               )}
             </button>
@@ -630,7 +636,7 @@ function Card({ card, columnId, onDelete, onUpdate, onAssign, onSetDueDate, onSe
           <span className="card-due-date-wrap">
             <input
               type="date"
-              className={`card-due-date ${dueDateStatus(card.dueDate)}`}
+              className="card-due-date"
               value={card.dueDate ? card.dueDate.slice(0, 10) : ''}
               min={card.createdAt ? card.createdAt.slice(0, 10) : undefined}
               onChange={(e) => onSetDueDate(card._id, e.target.value || null)}
