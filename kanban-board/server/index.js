@@ -19,6 +19,7 @@ const boardsRouter = require('./routes/boards');
 const columnsRouter = require('./routes/columns');
 const cardsRouter = require('./routes/cards');
 const notesRouter = require('./routes/notes');
+const activityRouter = require('./routes/activity');
 const meRouter = require('./routes/me');
 
 const app = express();
@@ -37,6 +38,7 @@ app.use('/', boardsRouter);
 app.use('/', columnsRouter);
 app.use('/', cardsRouter);
 app.use('/', notesRouter);
+app.use('/', activityRouter);
 
 // In production, this same service also serves the built React app, so the
 // client and API share one origin/deployment (no separate static host, no

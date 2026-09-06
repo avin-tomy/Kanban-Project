@@ -4,6 +4,7 @@ const Board = require('../models/Board');
 const Column = require('../models/Column');
 const Card = require('../models/Card');
 const User = require('../models/User');
+const Activity = require('../models/Activity');
 const { requireAuth } = require('../middleware/auth');
 const { requireBoardAccess, requireTeamMembership } = require('../middleware/teamAccess');
 
@@ -70,6 +71,7 @@ router.delete('/boards/:id', requireAuth, requireBoardAccess, async (req, res) =
 
   await Card.deleteMany({ boardId: board._id });
   await Column.deleteMany({ boardId: board._id });
+  await Activity.deleteMany({ boardId: board._id });
   await board.deleteOne();
   req.app.get('io').to(`team:${board.teamId}`).emit('board-list:changed', { teamId: board.teamId, kind: 'board-deleted' });
   res.status(204).send();

@@ -4,6 +4,7 @@ const Column = require('../models/Column');
 const Card = require('../models/Card');
 const { requireAuth } = require('../middleware/auth');
 const { requireBoardAccess, requireColumnAccess } = require('../middleware/teamAccess');
+const logActivity = require('../utils/activityLog');
 
 // POST /boards/:boardId/columns — create a column inside a board.
 // Nested under /boards because a column can't exist without a parent board —
@@ -18,6 +19,7 @@ router.post('/boards/:boardId/columns', requireAuth, requireBoardAccess, async (
 
   const count = await Column.countDocuments({ boardId: board._id });
   const column = await Column.create({ boardId: board._id, name, position: count });
+  await logActivity(req.app, board._id, req.userId, `created column "${name}"`);
   req.app.get('io').to(`board:${board._id}`).emit('board:changed', { boardId: board._id, kind: 'column-created' });
   res.status(201).location(`/columns/${column._id}`).json(column);
 });
@@ -93,12 +95,27 @@ router.put('/columns/:id/cards/order', requireAuth, requireColumnAccess, async (
     return res.status(400).json({ error: 'All cardIds must belong to a card already on this board' });
   }
 
+  // Cards whose columnId is about to change are the ones actually being
+  // dragged into this column (same-column reorders never hit this branch),
+  // so only these are worth an activity line — not the whole reordered list.
+  const movedCards = existingCards.filter(c => String(c.columnId) !== String(column._id));
+
   await Card.bulkWrite(cardIds.map((cardId, index) => ({
     updateOne: {
       filter: { _id: cardId },
       update: { position: index, columnId: column._id, boardId: column.boardId },
     },
   })));
+
+  if (movedCards.length > 0) {
+    const sourceColumnIds = [...new Set(movedCards.map(c => String(c.columnId)))];
+    const sourceColumns = await Column.find({ _id: { $in: sourceColumnIds } });
+    const sourceNameById = new Map(sourceColumns.map(c => [String(c._id), c.name]));
+    for (const c of movedCards) {
+      const sourceName = sourceNameById.get(String(c.columnId)) || 'a column';
+      await logActivity(req.app, column.boardId, req.userId, `moved card "${c.title}" from "${sourceName}" to "${column.name}"`);
+    }
+  }
 
   const cards = await Card.find({ columnId: column._id }).sort({ position: 1 });
   req.app.get('io').to(`board:${column.boardId}`).emit('board:changed', { boardId: column.boardId, kind: 'cards-reordered' });
@@ -111,6 +128,7 @@ router.delete('/columns/:id', requireAuth, requireColumnAccess, async (req, res)
 
   await Card.deleteMany({ columnId: column._id });
   await column.deleteOne();
+  await logActivity(req.app, column.boardId, req.userId, `deleted column "${column.name}"`);
   req.app.get('io').to(`board:${column.boardId}`).emit('board:changed', { boardId: column.boardId, kind: 'column-deleted' });
   res.status(204).send();
 });

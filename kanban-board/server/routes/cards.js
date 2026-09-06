@@ -3,8 +3,12 @@ const router = express.Router();
 const Column = require('../models/Column');
 const Card = require('../models/Card');
 const TeamMember = require('../models/TeamMember');
+const User = require('../models/User');
 const { requireAuth } = require('../middleware/auth');
 const { requireColumnAccess, requireCardAccess } = require('../middleware/teamAccess');
+const logActivity = require('../utils/activityLog');
+
+const STATUS_LABELS = { not_started: 'Not started', working: 'Working', completed: 'Completed' };
 
 // POST /columns/:columnId/cards — create a card inside a column
 router.post('/columns/:columnId/cards', requireAuth, requireColumnAccess, async (req, res) => {
@@ -23,6 +27,7 @@ router.post('/columns/:columnId/cards', requireAuth, requireColumnAccess, async 
     description: description || '',
     position: count,
   });
+  await logActivity(req.app, column.boardId, req.userId, `created card "${title}" in "${column.name}"`);
   req.app.get('io').to(`board:${column.boardId}`).emit('board:changed', { boardId: column.boardId, kind: 'card-created' });
   res.status(201).location(`/cards/${card._id}`).json(card);
 });
@@ -57,12 +62,46 @@ router.patch('/cards/:id', requireAuth, requireCardAccess, async (req, res) => {
       return res.status(400).json({ error: 'assigneeId must be a member of this board\'s team' });
     }
   }
-  if (dueDate !== undefined && dueDate !== null && Number.isNaN(new Date(dueDate).getTime())) {
-    return res.status(400).json({ error: 'dueDate must be a valid date or null' });
+  if (dueDate !== undefined && dueDate !== null) {
+    if (Number.isNaN(new Date(dueDate).getTime())) {
+      return res.status(400).json({ error: 'dueDate must be a valid date or null' });
+    }
+    // Compared as calendar-day strings (not Date arithmetic) for the same
+    // reason as the client's dueDateStatus: avoids a timezone shift making a
+    // same-day due date look like it's before the card was created.
+    const dueDateStr = new Date(dueDate).toISOString().slice(0, 10);
+    const createdDateStr = card.createdAt.toISOString().slice(0, 10);
+    if (dueDateStr < createdDateStr) {
+      return res.status(400).json({ error: 'dueDate cannot be before the card was created' });
+    }
   }
   if (status !== undefined && !['not_started', 'working', 'completed'].includes(status)) {
     return res.status(400).json({ error: 'status must be one of not_started, working, completed' });
   }
+
+  // Diffed against the card's current values BEFORE they're overwritten
+  // below, so each activity line reads like "assigned X to Bob" rather than
+  // firing even when a field is PATCHed to the value it already had.
+  const activityLines = [];
+  if (assigneeId !== undefined && String(assigneeId || '') !== String(card.assigneeId || '')) {
+    if (assigneeId) {
+      const assignee = await User.findById(assigneeId);
+      activityLines.push(`assigned "${card.title}" to ${assignee ? assignee.name : 'someone'}`);
+    } else {
+      activityLines.push(`unassigned "${card.title}"`);
+    }
+  }
+  if (dueDate !== undefined) {
+    const oldDate = card.dueDate ? card.dueDate.toISOString().slice(0, 10) : null;
+    const newDate = dueDate ? new Date(dueDate).toISOString().slice(0, 10) : null;
+    if (oldDate !== newDate) {
+      activityLines.push(newDate ? `set due date of "${card.title}" to ${newDate}` : `cleared due date of "${card.title}"`);
+    }
+  }
+  if (status !== undefined && status !== card.status) {
+    activityLines.push(`changed status of "${card.title}" to ${STATUS_LABELS[status]}`);
+  }
+
   if (title !== undefined) card.title = title;
   if (description !== undefined) card.description = description;
   if (columnId !== undefined) card.columnId = columnId;
@@ -71,6 +110,9 @@ router.patch('/cards/:id', requireAuth, requireCardAccess, async (req, res) => {
   if (dueDate !== undefined) card.dueDate = dueDate;
   if (status !== undefined) card.status = status;
   await card.save();
+  for (const detail of activityLines) {
+    await logActivity(req.app, card.boardId, req.userId, detail);
+  }
   req.app.get('io').to(`board:${card.boardId}`).emit('board:changed', { boardId: card.boardId, kind: 'card-updated' });
   res.status(200).json(card);
 });
@@ -78,7 +120,9 @@ router.patch('/cards/:id', requireAuth, requireCardAccess, async (req, res) => {
 // DELETE /cards/:id
 router.delete('/cards/:id', requireAuth, requireCardAccess, async (req, res) => {
   const boardId = req.card.boardId;
+  const title = req.card.title;
   await req.card.deleteOne();
+  await logActivity(req.app, boardId, req.userId, `deleted card "${title}"`);
   req.app.get('io').to(`board:${boardId}`).emit('board:changed', { boardId, kind: 'card-deleted' });
   res.status(204).send();
 });

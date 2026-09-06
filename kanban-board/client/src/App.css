@@ -228,9 +228,72 @@ input:focus {
 }
 
 /* --- Presence: who currently has this board open --- */
+.page-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+
 .presence-menu {
   position: relative;
   flex-shrink: 0;
+}
+
+.activity-menu {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.activity-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  width: 340px;
+  max-width: 80vw;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  z-index: 51;
+  padding: 8px 0;
+}
+
+.activity-empty {
+  padding: 10px 14px;
+  color: var(--text-muted);
+  font-size: 13px;
+  margin: 0;
+}
+
+.activity-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.activity-list li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.activity-list li:last-child {
+  border-bottom: none;
+}
+
+.activity-detail {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.activity-time {
+  font-size: 11px;
+  color: var(--text-muted);
 }
 
 .presence-trigger {
@@ -634,15 +697,15 @@ input:focus {
 }
 
 .card-missed-deadline {
-  border: 1px solid var(--danger);
-  background: rgba(229, 83, 75, 0.1);
-  box-shadow: inset 3px 0 0 var(--danger);
+  border: 1px solid rgba(229, 83, 75, 0.45);
+  background: rgba(229, 83, 75, 0.05);
+  box-shadow: inset 3px 0 0 rgba(229, 83, 75, 0.5);
 }
 
 .card-completed {
-  border: 1px solid #3ecf8e;
-  background: rgba(62, 207, 142, 0.15);
-  box-shadow: inset 3px 0 0 #3ecf8e;
+  border: 1px solid rgba(62, 207, 142, 0.4);
+  background: rgba(62, 207, 142, 0.06);
+  box-shadow: inset 3px 0 0 rgba(62, 207, 142, 0.5);
 }
 
 .card-drag-handle {
@@ -665,6 +728,14 @@ input:focus {
   color: var(--text-muted);
   font-size: 13px;
   white-space: pre-wrap;
+  cursor: pointer;
+}
+
+.card-description-clamped {
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .card-desc-edit {
@@ -702,7 +773,8 @@ input:focus {
 .card-actions-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 4px 8px;
 }
 
 .card-header-row {
@@ -725,13 +797,13 @@ input:focus {
 }
 
 .card-status.card-status-working {
-  border-color: var(--accent);
-  color: var(--accent);
+  border-color: rgba(91, 141, 239, 0.55);
+  color: rgba(91, 141, 239, 0.9);
 }
 
 .card-status.card-status-completed {
-  border-color: #3ecf8e;
-  color: #3ecf8e;
+  border-color: rgba(62, 207, 142, 0.5);
+  color: rgba(62, 207, 142, 0.9);
 }
 
 .card-actions .icon-btn {
@@ -745,6 +817,13 @@ input:focus {
 .card-assignee {
   position: relative;
   flex-shrink: 0;
+}
+
+.card-created-date {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
 }
 
 .card-assignee-trigger {
@@ -829,19 +908,30 @@ input:focus {
 }
 
 .card-due-date.card-due-green {
-  border-color: #3ecf8e;
-  color: #3ecf8e;
+  border-color: rgba(62, 207, 142, 0.5);
+  color: rgba(62, 207, 142, 0.9);
 }
 
 .card-due-date.card-due-orange {
-  border-color: #e08a3c;
-  color: #e08a3c;
+  border-color: rgba(224, 138, 60, 0.55);
+  color: rgba(224, 138, 60, 0.9);
 }
 
 .card-due-date.card-due-red {
-  border-color: var(--danger);
-  color: var(--danger);
+  border-color: rgba(229, 83, 75, 0.5);
+  color: rgba(229, 83, 75, 0.9);
 }
+
+.card-days-left {
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.card-days-left.card-due-green { color: rgba(62, 207, 142, 0.9); }
+.card-days-left.card-due-orange { color: rgba(224, 138, 60, 0.9); }
+.card-days-left.card-due-red { color: rgba(229, 83, 75, 0.9); }
 
 /* --- My Tasks --- */
 .task-list {

@@ -13,30 +13,45 @@ function toUtcMs(dateStr) {
 // calendar date the <input type="date"> stored, and Date object arithmetic
 // (new Date(...).setHours(0,0,0,0)) silently shifts that by a day whenever
 // the local timezone isn't UTC.
-export function dueDateStatus(dueDate) {
-  if (!dueDate) return 'card-due-none';
+//
+// Every other function in this file is defined in terms of this one, so the
+// red/orange/green bucketing, the overdue flag, and the "days left" label
+// can never disagree with each other about what day it is.
+export function daysUntilDue(dueDate) {
+  if (!dueDate) return null;
 
   const dueStr = dueDate.slice(0, 10);
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  const daysUntilDue = Math.round((toUtcMs(dueStr) - toUtcMs(todayStr)) / 86400000);
+  return Math.round((toUtcMs(dueStr) - toUtcMs(todayStr)) / 86400000);
+}
+
+export function dueDateStatus(dueDate) {
+  const days = daysUntilDue(dueDate);
+  if (days === null) return 'card-due-none';
 
   // Overdue and "due today" both land here too, since they're <= 2 days
   // (zero or negative) — urgency only gets worse the further past due a
   // card is, so they belong in the same most-urgent bucket as day 1/2.
-  if (daysUntilDue <= 2) return 'card-due-red';
-  if (daysUntilDue <= 7) return 'card-due-orange';
+  if (days <= 2) return 'card-due-red';
+  if (days <= 7) return 'card-due-orange';
   return 'card-due-green';
 }
 
-// True once the due date's calendar day is strictly before today — same
-// string-based day-diff approach as dueDateStatus, so "past due" can never
-// disagree with the red/orange/green bucketing above.
+// True once the due date's calendar day is strictly before today.
 export function isPastDue(dueDate) {
-  if (!dueDate) return false;
+  const days = daysUntilDue(dueDate);
+  return days !== null && days < 0;
+}
 
-  const dueStr = dueDate.slice(0, 10);
-  const now = new Date();
-  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  return toUtcMs(dueStr) < toUtcMs(todayStr);
+// A short label for "how much time is left" next to the due date itself —
+// distinct from dueDateStatus's color, which only signals urgency tier.
+export function daysLeftLabel(dueDate) {
+  const days = daysUntilDue(dueDate);
+  if (days === null) return null;
+  if (days === 0) return 'Due today';
+  const plural = (n) => (n === 1 ? 'day' : 'days');
+  if (days > 0) return `${days} ${plural(days)} left`;
+  const overdueBy = Math.abs(days);
+  return `${overdueBy} ${plural(overdueBy)} overdue`;
 }

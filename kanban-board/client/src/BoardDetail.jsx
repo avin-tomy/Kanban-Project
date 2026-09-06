@@ -5,8 +5,9 @@ import { CSS } from '@dnd-kit/utilities';
 import { api } from './api';
 import ConfirmDialog from './ConfirmDialog';
 import NotesPanel from './NotesPanel';
+import ActivityLog from './ActivityLog';
 import { getSocket } from './socket';
-import { dueDateStatus, isPastDue } from './dateUtils';
+import { dueDateStatus, isPastDue, daysLeftLabel } from './dateUtils';
 
 // Columns get their own sortable identity distinct from their id as a card
 // drop-zone (see the Column component) — dnd-kit can't register the same id
@@ -89,7 +90,7 @@ export default function BoardDetail({ boardId, onBack }) {
   // once the request resolves; on failure it's just dropped via a resync.
   const handleAddCard = async (columnId, title) => {
     const tempId = `temp-${Date.now()}`;
-    const tempCard = { _id: tempId, columnId, title, description: '' };
+    const tempCard = { _id: tempId, columnId, title, description: '', createdAt: new Date().toISOString() };
     setBoard(prev => ({
       ...prev,
       columns: prev.columns.map(col => (col._id === columnId ? { ...col, cards: [...col.cards, tempCard] } : col)),
@@ -275,7 +276,10 @@ export default function BoardDetail({ boardId, onBack }) {
       <button onClick={onBack} className="back-button btn-ghost btn-small">&larr; Back to boards</button>
       <div className="page-header">
         <h1>{board.name}</h1>
-        <PresenceList users={presentUsers} />
+        <div className="page-header-actions">
+          <ActivityLog boardId={boardId} />
+          <PresenceList users={presentUsers} />
+        </div>
       </div>
       {error && <p className="error">{error}</p>}
       <form onSubmit={handleAddColumn} className="inline-form">
@@ -429,7 +433,7 @@ function Column({ column, onChange, onAddCard, onDeleteColumn, onDeleteCard, onA
       <div ref={setNodeRef} className={`column${isOver ? ' column-over' : ''}`}>
         <div className="column-header">
           <h3 className="column-drag-handle" {...attributes} {...listeners}>{column.name}</h3>
-          <button onClick={() => setConfirmingDelete(true)} className="btn-ghost btn-small">Delete</button>
+          <button onClick={() => setConfirmingDelete(true)} className="btn-ghost btn-ghost-danger btn-small">Delete</button>
         </div>
         {confirmingDelete && (
           <ConfirmDialog
@@ -460,10 +464,13 @@ function Column({ column, onChange, onAddCard, onDeleteColumn, onDeleteCard, onA
 
 const STATUS_LABELS = { not_started: 'Not started', working: 'Working', completed: 'Completed' };
 
+const formatCreatedDate = (iso) => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: '2-digit' });
+
 function Card({ card, columnId, onDelete, onUpdate, onAssign, onSetDueDate, onSetStatus, teamMembers }) {
   const [confirming, setConfirming] = useState(false);
   const [editingDesc, setEditingDesc] = useState(false);
   const [descDraft, setDescDraft] = useState(card.description);
+  const [descExpanded, setDescExpanded] = useState(false);
   const [assigneeMenuOpen, setAssigneeMenuOpen] = useState(false);
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: card._id,
@@ -498,7 +505,6 @@ function Card({ card, columnId, onDelete, onUpdate, onAssign, onSetDueDate, onSe
       <div className="card-header-row">
         <div className="card-drag-handle" {...listeners} {...attributes}>
           <p className="card-title">{card.title}</p>
-          {card.description && !editingDesc && <p className="card-description">{card.description}</p>}
         </div>
         <select
           className={`card-status card-status-${card.status || 'not_started'}`}
@@ -511,6 +517,14 @@ function Card({ card, columnId, onDelete, onUpdate, onAssign, onSetDueDate, onSe
           ))}
         </select>
       </div>
+      {card.description && !editingDesc && (
+        <p
+          className={`card-description${descExpanded ? '' : ' card-description-clamped'}`}
+          onClick={() => setDescExpanded(x => !x)}
+        >
+          {card.description}
+        </p>
+      )}
       {editingDesc && (
         <div className="card-desc-edit">
           <textarea
@@ -568,13 +582,24 @@ function Card({ card, columnId, onDelete, onUpdate, onAssign, onSetDueDate, onSe
               </>
             )}
           </div>
+          {card.createdAt && (
+            <span className="card-created-date" title={`Created ${new Date(card.createdAt).toLocaleString()}`}>
+              {formatCreatedDate(card.createdAt)}
+            </span>
+          )}
           <input
             type="date"
             className={`card-due-date ${dueDateStatus(card.dueDate)}`}
             value={card.dueDate ? card.dueDate.slice(0, 10) : ''}
+            min={card.createdAt ? card.createdAt.slice(0, 10) : undefined}
             onChange={(e) => onSetDueDate(card._id, e.target.value || null)}
             aria-label="Due date"
           />
+          {card.dueDate && (
+            <span className={`card-days-left ${dueDateStatus(card.dueDate)}`}>
+              {daysLeftLabel(card.dueDate)}
+            </span>
+          )}
         </div>
         <div className="card-actions-row">
           <button onClick={startEditing} className="btn-ghost btn-small">

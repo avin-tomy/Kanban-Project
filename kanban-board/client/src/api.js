@@ -75,4 +75,6 @@ export const api = {
   deleteNote: (noteId) => request(`/notes/${noteId}`, { method: 'DELETE' }),
   toggleReaction: (noteId, emoji) =>
     request(`/notes/${noteId}/reactions`, { method: 'POST', body: JSON.stringify({ emoji }) }),
+
+  getActivity: (boardId) => request(`/boards/${boardId}/activity`),
 };

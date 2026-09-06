@@ -7,6 +7,7 @@ const Board = require('../models/Board');
 const Column = require('../models/Column');
 const Card = require('../models/Card');
 const Note = require('../models/Note');
+const Activity = require('../models/Activity');
 const { requireTeamMembership, requireTeamOwner } = require('../middleware/teamAccess');
 
 // POST /teams — create a team; the creator becomes its owner and first member.
@@ -83,6 +84,7 @@ router.delete('/:teamId', requireTeamOwner(), async (req, res) => {
     await Note.deleteMany({ boardId: board._id });
     await Card.deleteMany({ boardId: board._id });
     await Column.deleteMany({ boardId: board._id });
+    await Activity.deleteMany({ boardId: board._id });
     await board.deleteOne();
   }
   await TeamMember.deleteMany({ teamId: req.team._id });
