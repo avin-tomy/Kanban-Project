@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import ProfileMenu from './ProfileMenu';
+import NotificationsBell from './NotificationsBell';
 
-export default function Sidebar({ teams, currentTeamId, onSwitchTeam, onCreateTeam, view, onChangeView, open, onClose }) {
+export default function Sidebar({ teams, currentTeamId, onSwitchTeam, onCreateTeam, view, onChangeView, open, onClose, onOpenNotification }) {
   const [creating, setCreating] = useState(false);
   const [newTeamName, setNewTeamName] = useState('');
 
@@ -32,7 +33,10 @@ export default function Sidebar({ teams, currentTeamId, onSwitchTeam, onCreateTe
             </svg>
             <span>Kanban</span>
           </div>
-          <button className="sidebar-mobile-close" onClick={onClose} aria-label="Close menu">&times;</button>
+          <div className="sidebar-header-actions">
+            <NotificationsBell mobileMenuOpen={open} onOpenNotification={(n) => { onOpenNotification(n); onClose(); }} />
+            <button className="sidebar-mobile-close" onClick={onClose} aria-label="Close menu">&times;</button>
+          </div>
         </div>
 
       <ul className="sidebar-nav">

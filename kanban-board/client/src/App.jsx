@@ -8,6 +8,7 @@ import TeamMembers from './TeamMembers';
 import MyTasks from './MyTasks';
 import Sidebar from './Sidebar';
 import { api } from './api';
+import { getSocket } from './socket';
 import './App.css';
 
 const TEAM_STORAGE_KEY = 'kanban_current_team';
@@ -20,6 +21,7 @@ function AuthGate() {
 }
 
 function AuthenticatedApp() {
+  const { user } = useAuth();
   const [teams, setTeams] = useState(null);
   const [currentTeamId, setCurrentTeamId] = useState(() => localStorage.getItem(TEAM_STORAGE_KEY));
   const [selectedBoardId, setSelectedBoardId] = useState(null);
@@ -49,10 +51,36 @@ function AuthenticatedApp() {
     if (currentTeamId) localStorage.setItem(TEAM_STORAGE_KEY, currentTeamId);
   }, [currentTeamId]);
 
+  // TeamMembers.jsx already joins this same room to refresh its own member
+  // list, but that doesn't touch the role/isOwner carried here on `teams` —
+  // so without this, someone just *watching* a role or ownership change
+  // happen (rather than performing it themselves) would see their own
+  // Danger Zone/management controls stay stale until they switched away and
+  // back. This is the general fix; handleOwnershipTransferred below is just
+  // the instant, no-round-trip version for the person who clicked the button.
+  useEffect(() => {
+    if (!currentTeamId) return;
+    const socket = getSocket();
+    if (!socket) return;
+    socket.emit('join:team', currentTeamId);
+    const onChanged = (payload) => { if (payload.teamId === currentTeamId) loadTeams(); };
+    socket.on('team:membership-changed', onChanged);
+    return () => {
+      socket.emit('leave:team', currentTeamId);
+      socket.off('team:membership-changed', onChanged);
+    };
+  }, [currentTeamId]);
+
+  // The membership-changed socket listener above only ever watches the
+  // currently active team's room, so a role/ownership change on a team you
+  // weren't looking at can leave that team's entry in `teams` stale (wrong
+  // role, wrong isOwner) until something refreshes it. Refetching on every
+  // switch closes that window instead of trusting whatever was last loaded.
   const handleSwitchTeam = (teamId) => {
     setCurrentTeamId(teamId);
     setSelectedBoardId(null);
     setView('boards');
+    loadTeams();
   };
 
   // The sidebar shows the new team the instant the form submits, using a
@@ -85,6 +113,15 @@ function AuthenticatedApp() {
     setTeams(prev => (prev || []).filter(t => t._id !== teamId));
   };
 
+  // Same local-state shape as handleTeamDeleted — the team disappears from
+  // this user's list either way, whether it was deleted out from under them
+  // or they chose to leave it themselves.
+  const handleTeamLeft = (teamId) => {
+    setView('boards');
+    setSelectedBoardId(null);
+    setTeams(prev => (prev || []).filter(t => t._id !== teamId));
+  };
+
   // My Tasks spans every team, so opening one from there has to switch the
   // active team first (its board wouldn't otherwise be reachable) before
   // landing on that specific board.
@@ -92,6 +129,30 @@ function AuthenticatedApp() {
     setCurrentTeamId(teamId);
     setSelectedBoardId(boardId);
     setView('boards');
+  };
+
+  // Same idea for a clicked notification: every type carries the team it
+  // happened on, and card-assignment ones also carry the board — team
+  // additions and role changes have no specific board, so those just land
+  // on that team's board list. `teams` was only ever fetched once on
+  // mount, so a notification about a team just added (or a role/ownership
+  // change on one already held) needs a fresh copy before switching to it —
+  // otherwise `currentTeam` below fails to find it and falls back to the
+  // "No teams yet" empty state.
+  const handleOpenNotification = async (notification) => {
+    await loadTeams();
+    if (notification.teamId) setCurrentTeamId(notification.teamId);
+    setSelectedBoardId(notification.boardId || null);
+    setView('boards');
+  };
+
+  // The acting owner's own role/isOwner flag lives in this `teams` array,
+  // not in TeamMembers' own member list — so without this, transferring
+  // ownership away would leave the Danger Zone and remove-member controls
+  // visible to the (now former) owner until a manual reload.
+  const handleOwnershipTransferred = (teamId, newOwnerId) => {
+    const iAmNewOwner = String(newOwnerId) === String(user._id);
+    setTeams(prev => prev.map(t => (t._id === teamId ? { ...t, isOwner: iAmNewOwner, role: iAmNewOwner ? 'owner' : 'co_owner' } : t)));
   };
 
   if (!teams) return <p style={{ padding: 24 }}>{error || 'Loading…'}</p>;
@@ -114,6 +175,7 @@ function AuthenticatedApp() {
         onChangeView={(v) => { setView(v); setSelectedBoardId(null); }}
         open={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
+        onOpenNotification={handleOpenNotification}
       />
       <main className="main-content">
         {view === 'myTasks' ? (
@@ -124,7 +186,7 @@ function AuthenticatedApp() {
             <p>Create a team from the sidebar to start adding boards.</p>
           </div>
         ) : view === 'members' ? (
-          <TeamMembers team={currentTeam} onTeamDeleted={handleTeamDeleted} />
+          <TeamMembers team={currentTeam} onTeamDeleted={handleTeamDeleted} onOwnershipTransferred={handleOwnershipTransferred} onTeamLeft={handleTeamLeft} />
         ) : selectedBoardId ? (
           <BoardDetail boardId={selectedBoardId} onBack={() => setSelectedBoardId(null)} />
         ) : (

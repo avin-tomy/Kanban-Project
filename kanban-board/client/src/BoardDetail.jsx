@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { DndContext, useDroppable, rectIntersection } from '@dnd-kit/core';
+import { DndContext, DragOverlay, useDroppable, rectIntersection } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy, horizontalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { api } from './api';
@@ -34,6 +34,7 @@ export default function BoardDetail({ boardId, onBack }) {
   const [error, setError] = useState('');
   const [presentUsers, setPresentUsers] = useState([]);
   const [teamMembers, setTeamMembers] = useState([]);
+  const [activeCardId, setActiveCardId] = useState(null);
 
   const load = () => api.getBoardFull(boardId).then(setBoard).catch(e => setError(e.message));
 
@@ -214,6 +215,18 @@ export default function BoardDetail({ boardId, onBack }) {
 
   const findColumnOf = (cardId) => board.columns.find(col => col.cards.some(c => c._id === cardId));
 
+  // Tracked purely so a floating DragOverlay copy (rendered below) can be
+  // shown for whichever card is active. Without it, the card being dragged
+  // between columns is the actual list item — moving it from one column's
+  // array to another's unmounts it from one SortableContext and remounts it
+  // in the other mid-drag, which loses dnd-kit's pointer tracking on that
+  // node and can make the card vanish until the drag ends. The overlay is a
+  // separate element that never moves in the DOM, so it keeps following the
+  // cursor regardless of how the underlying lists change.
+  const handleDragStart = ({ active }) => {
+    if (active.data.current?.type !== 'column') setActiveCardId(active.id);
+  };
+
   // Fires continuously while a card is dragged over something. dnd-kit's
   // per-item transform (from useSortable) only tracks the pointer correctly
   // for items that already belong to the SortableContext being hovered — so
@@ -260,6 +273,7 @@ export default function BoardDetail({ boardId, onBack }) {
   // same-column reorder — a plain arrayMove — and persist that column's
   // final order.
   const handleDragEnd = async ({ active, over }) => {
+    setActiveCardId(null);
     if (!over) { load(); return; }
 
     if (active.data.current?.type === 'column') {
@@ -314,11 +328,15 @@ export default function BoardDetail({ boardId, onBack }) {
   // If a drag is aborted (e.g. Escape) after handleDragOver already moved a
   // card between columns locally, nothing was persisted — resync with the
   // server so the UI doesn't show a move that never happened.
-  const handleDragCancel = () => load();
+  const handleDragCancel = () => {
+    setActiveCardId(null);
+    load();
+  };
 
   if (!board) return <p>{error || 'Loading...'}</p>;
 
   const canManage = board.role === 'owner' || board.role === 'co_owner';
+  const activeCard = activeCardId ? board.columns.flatMap(col => col.cards).find(c => c._id === activeCardId) : null;
 
   return (
     <div className="board-detail">
@@ -346,6 +364,7 @@ export default function BoardDetail({ boardId, onBack }) {
       <div className="board-body">
         <DndContext
           collisionDetection={collisionDetectionStrategy}
+          onDragStart={handleDragStart}
           onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
           onDragCancel={handleDragCancel}
@@ -369,6 +388,9 @@ export default function BoardDetail({ boardId, onBack }) {
               ))}
             </div>
           </SortableContext>
+          <DragOverlay>
+            {activeCard ? <CardDragPreview card={activeCard} role={board.role} /> : null}
+          </DragOverlay>
         </DndContext>
         <NotesPanel boardId={boardId} />
       </div>
@@ -534,6 +556,74 @@ const STATUS_LABELS = { not_started: 'Not started', working: 'Working', complete
 const formatCreatedDate = (iso) => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: '2-digit' });
 
 const formatAssignedDate = (iso) => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+
+// Static, non-interactive stand-in for the card being dragged, rendered by
+// DragOverlay — see the comment on handleDragStart for why this exists
+// instead of just letting the real card follow the cursor. Mirrors the real
+// Card's full layout (description, assignee, dates) rather than a stripped
+// summary, so the card doesn't visually shrink the moment you pick it up;
+// every control is disabled since nothing here is meant to be interactive.
+function CardDragPreview({ card, role }) {
+  const canManage = role === 'owner' || role === 'co_owner';
+  const missedDeadline = isPastDue(card.dueDate) && card.status !== 'completed';
+  const isCompleted = card.status === 'completed';
+
+  return (
+    <div className={`card card-drag-overlay${missedDeadline ? ' card-missed-deadline' : ''}${isCompleted ? ' card-completed' : ''}`}>
+      <div className="card-header-row">
+        <p className="card-title">{card.title}</p>
+        <select
+          className={`card-status card-status-${card.status || 'not_started'}`}
+          value={card.status || 'not_started'}
+          disabled
+          aria-label="Card status"
+          onChange={() => {}}
+        >
+          {Object.entries(STATUS_LABELS).map(([value, label]) => (
+            <option key={value} value={value}>{label}</option>
+          ))}
+        </select>
+      </div>
+      {card.description && (
+        <p className="card-description card-description-clamped">{card.description}</p>
+      )}
+      <div className="card-actions">
+        <div className="card-actions-row">
+          <div className="card-assignee">
+            <button className="card-assignee-trigger" disabled aria-label={card.assigneeName ? `Assigned to ${card.assigneeName}` : 'Assign this card'}>
+              {card.assigneeId ? (
+                <span className="presence-avatar card-assignee-avatar" style={{ background: colorForUserId(card.assigneeId) }}>
+                  {initialsOf(card.assigneeName || '?')}
+                </span>
+              ) : (
+                <span className="card-assignee-empty">+</span>
+              )}
+            </button>
+          </div>
+          {card.createdAt && <span className="card-created-date">{formatCreatedDate(card.createdAt)}</span>}
+          <span className="card-due-date-wrap">
+            <input
+              type="date"
+              className="card-due-date"
+              value={card.dueDate ? card.dueDate.slice(0, 10) : ''}
+              disabled
+              aria-label="Due date"
+              onChange={() => {}}
+            />
+          </span>
+          {card.dueDate && (
+            <span className={`card-days-left ${dueDateStatus(card.dueDate)}`}>{daysLeftLabel(card.dueDate)}</span>
+          )}
+        </div>
+        <div className="card-actions-row">
+          {canManage && (
+            <button className="btn-ghost btn-small" disabled>{card.description ? 'Edit description' : 'Add description'}</button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function Card({ card, columnId, onDelete, onAssign, onSetDueDate, onSetStatus, onSetDescription, teamMembers, role }) {
   const { user } = useAuth();

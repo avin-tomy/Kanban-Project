@@ -10,7 +10,7 @@
   --danger: #e5534b;
   --danger-hover: #c94940;
   --radius: 5px;
-  --sidebar-width: 220px;
+  --sidebar-width: 300px;
   color-scheme: dark;
 }
 
@@ -52,15 +52,29 @@ body {
   padding: 20px 16px;
 }
 
+/* Holds the logo and the notifications bell side by side, at all widths —
+   not just the mobile layout below, which also puts a close button here. */
+.sidebar-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
 .sidebar-logo {
   font-family: Georgia, "Times New Roman", serif;
   font-weight: 700;
   font-size: 18px;
-  margin-bottom: 24px;
   display: flex;
   align-items: center;
   gap: 9px;
   padding-left: 8px;
+}
+
+.sidebar-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .sidebar-logo-icon {
@@ -112,7 +126,7 @@ h1 {
 }
 
 .page-subtitle {
-  margin: 12px 0 0 0;
+  margin: 20px 0 0 0;
   color: var(--text-muted);
   font-size: 18px;
 }
@@ -123,6 +137,13 @@ h1 {
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 40px;
+}
+
+/* The "Members" subtitle sits right above the add-member form, so it reads
+   as that form's own label — the full 40px meant to separate a header from
+   the page body below reads as too much distance here. */
+.team-members .page-header {
+  margin-bottom: 20px;
 }
 
 /* An empty-state message sits directly under the header with nothing else
@@ -236,6 +257,13 @@ input:focus {
   display: flex;
   gap: 8px;
   margin: 16px 0 28px 0;
+}
+
+/* Scoped to the board list's own "Create board" form — matches the width
+   of the board list below it (.board-list ul), rather than stretching much
+   further on a laptop screen. */
+.board-list .inline-form {
+  max-width: 480px;
 }
 
 .inline-form input {
@@ -447,6 +475,94 @@ input:focus {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* --- Notifications bell, in the sidebar header --- */
+.notifications-menu {
+  position: relative;
+  flex-shrink: 0;
+}
+
+.notifications-trigger {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background: none;
+  border: none;
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.notifications-trigger:hover {
+  background: var(--surface-sunken);
+  color: var(--text);
+}
+
+.notifications-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
+}
+
+.notifications-dropdown {
+  left: 0;
+  right: auto;
+  width: 320px;
+}
+
+.notifications-dropdown-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.notification-item {
+  cursor: pointer;
+}
+
+.notification-item:hover {
+  background: var(--surface-sunken);
+}
+
+.notification-item-unread {
+  position: relative;
+  background: rgba(91, 141, 239, 0.08);
+}
+
+.notification-item-unread::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 16px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+.notification-item-unread .activity-detail {
+  padding-left: 12px;
+}
+
+.notification-invite-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  cursor: default;
 }
 
 .board-body {
@@ -755,9 +871,22 @@ input:focus {
   margin: 10px 0;
 }
 
+/* The actual list item just marks its slot as lifted — the floating copy
+   that follows the cursor is .card-drag-overlay below. Keeping this one
+   plain (no shadow/rotate) avoids two versions of the same card visibly
+   fighting for the "picked up" look while a card is mid-drag. */
 .card-dragging {
-  opacity: 0.6;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.15);
+  opacity: 0.4;
+}
+
+.card-drag-overlay {
+  /* Matches a column's content width (334px wrapper minus 12px padding on
+     each side) — DragOverlay renders outside the column, so without this
+     the card would shrink-wrap to its content instead of keeping the size
+     it had in the list. */
+  width: 310px;
+  cursor: grabbing;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
   transform: rotate(-1.5deg);
 }
 
@@ -1006,9 +1135,17 @@ input:focus {
 .card-days-left.card-due-red { color: rgba(229, 83, 75, 0.9); }
 
 /* --- My Tasks --- */
+/* The filter and sort controls always sit on their own row below the
+   title, rather than squeezed onto the header's one line next to it. */
+.my-tasks .page-header {
+  flex-wrap: wrap;
+}
+
 .task-controls {
   display: flex;
   gap: 8px;
+  width: 100%;
+  margin-top: 8px;
 }
 
 .task-filter-select,
@@ -1415,13 +1552,6 @@ input:focus {
     transform: translateX(0);
   }
 
-  .sidebar-header-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 24px;
-  }
-
   .sidebar-mobile-close {
     display: flex;
     align-items: center;
@@ -1552,6 +1682,10 @@ input:focus {
   color: var(--text-muted);
 }
 
+.member-add-form {
+  max-width: 480px;
+}
+
 .member-add-input-wrap {
   position: relative;
   flex: 1;
@@ -1612,7 +1746,7 @@ input:focus {
   align-items: center;
   justify-content: space-between;
   gap: 24px;
-  max-width: 640px;
+  max-width: 480px;
   margin-top: 40px;
   padding: 16px 20px;
   border: 1px solid var(--danger);
@@ -1622,6 +1756,11 @@ input:focus {
 .danger-zone h3 {
   color: var(--danger);
   margin-bottom: 6px;
+}
+
+.danger-zone .btn-danger {
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .danger-zone p {

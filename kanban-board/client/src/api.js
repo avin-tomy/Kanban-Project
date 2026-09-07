@@ -43,6 +43,7 @@ export const api = {
   getMyAssignedCards: () => request('/me/assigned-cards'),
   createTeam: (name) => request('/teams', { method: 'POST', body: JSON.stringify({ name }) }),
   deleteTeam: (teamId) => request(`/teams/${teamId}`, { method: 'DELETE' }),
+  leaveTeam: (teamId) => request(`/teams/${teamId}/leave`, { method: 'DELETE' }),
   getTeamMembers: (teamId) => request(`/teams/${teamId}/members`),
   searchMemberCandidates: (teamId, q) => request(`/teams/${teamId}/members/search?q=${encodeURIComponent(q)}`),
   addTeamMember: (teamId, email) =>
@@ -51,6 +52,11 @@ export const api = {
     request(`/teams/${teamId}/members/${userId}`, { method: 'DELETE' }),
   updateMemberRole: (teamId, userId, role) =>
     request(`/teams/${teamId}/members/${userId}`, { method: 'PATCH', body: JSON.stringify({ role }) }),
+  transferOwnership: (teamId, userId) =>
+    request(`/teams/${teamId}/transfer-ownership`, { method: 'POST', body: JSON.stringify({ userId }) }),
+  getPendingInvitations: (teamId) => request(`/teams/${teamId}/invitations`),
+  acceptInvitation: (teamId) => request(`/teams/${teamId}/accept`, { method: 'POST' }),
+  declineInvitation: (teamId) => request(`/teams/${teamId}/accept`, { method: 'DELETE' }),
 
   getBoards: (teamId) => request(`/teams/${teamId}/boards`),
   createBoard: (teamId, name) =>
@@ -80,4 +86,9 @@ export const api = {
     request(`/notes/${noteId}/reactions`, { method: 'POST', body: JSON.stringify({ emoji }) }),
 
   getActivity: (boardId) => request(`/boards/${boardId}/activity`),
+
+  getNotifications: () => request('/notifications'),
+  markNotificationRead: (id) =>
+    request(`/notifications/${id}`, { method: 'PATCH', body: JSON.stringify({ read: true }) }),
+  markAllNotificationsRead: () => request('/notifications/read-all', { method: 'POST' }),
 };

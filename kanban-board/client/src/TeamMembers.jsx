@@ -3,34 +3,44 @@ import { api } from './api';
 import { getSocket } from './socket';
 import ConfirmDialog from './ConfirmDialog';
 
-export default function TeamMembers({ team, onTeamDeleted }) {
+export default function TeamMembers({ team, onTeamDeleted, onOwnershipTransferred, onTeamLeft }) {
   const [members, setMembers] = useState([]);
+  const [pendingInvitations, setPendingInvitations] = useState([]);
   const [email, setEmail] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
   const [error, setError] = useState('');
-  const [confirmingUserId, setConfirmingUserId] = useState(null);
+  const [confirmingRemoval, setConfirmingRemoval] = useState(null); // { _id, name, isInvite }
+  const [confirmingTransferUserId, setConfirmingTransferUserId] = useState(null);
   const [confirmingDeleteTeam, setConfirmingDeleteTeam] = useState(false);
+  const [confirmingLeaveTeam, setConfirmingLeaveTeam] = useState(false);
   const searchTimer = useRef(null);
 
-  const load = () => api.getTeamMembers(team._id).then(setMembers).catch(e => setError(e.message));
+  const isOwner = team.isOwner;
+  const canManage = team.role === 'owner' || team.role === 'co_owner';
 
-  useEffect(() => { load(); }, [team._id]);
+  const load = () => api.getTeamMembers(team._id).then(setMembers).catch(e => setError(e.message));
+  // Kept as a separate list rather than a "pending" flag mixed into
+  // `members` — a pending row has no role yet and would need special-casing
+  // throughout that list's rendering (role dropdown, owner badge, etc.).
+  const loadInvitations = () => {
+    if (!canManage) return;
+    api.getPendingInvitations(team._id).then(setPendingInvitations).catch(e => setError(e.message));
+  };
+
+  useEffect(() => { load(); loadInvitations(); }, [team._id, canManage]);
 
   useEffect(() => {
     const socket = getSocket();
     if (!socket) return;
     socket.emit('join:team', team._id);
-    const onChanged = (payload) => { if (payload.teamId === team._id) load(); };
+    const onChanged = (payload) => { if (payload.teamId === team._id) { load(); loadInvitations(); } };
     socket.on('team:membership-changed', onChanged);
     return () => {
       socket.emit('leave:team', team._id);
       socket.off('team:membership-changed', onChanged);
     };
-  }, [team._id]);
-
-  const isOwner = team.isOwner;
-  const canManage = team.role === 'owner' || team.role === 'co_owner';
+  }, [team._id, canManage]);
 
   // Debounced so every keystroke doesn't fire its own request — waits for a
   // short pause in typing before asking the server for matches.
@@ -58,13 +68,15 @@ export default function TeamMembers({ team, onTeamDeleted }) {
     return () => document.removeEventListener('click', handleClickOutside);
   }, [suggestionsOpen]);
 
-  // A row appears before the request even goes out — not just before it
-  // resolves. Clicking a suggestion already gives us the real name/email/id,
-  // so that row is fully accurate from the start; typing a raw email with no
-  // matching suggestion has nothing but the address to show, so a temporary
-  // row uses that as a stand-in name until the POST response swaps in the
-  // account's real name. Either way, nothing here waits on the network
-  // before the list changes.
+  // A row appears in Pending invitations before the request even goes out —
+  // not just before it resolves. Clicking a suggestion already gives us the
+  // real name/email/id, so that row is fully accurate from the start;
+  // typing a raw email with no matching suggestion has nothing but the
+  // address to show, so a temporary row uses that as a stand-in name until
+  // the POST response swaps in the account's real name. Either way, nothing
+  // here waits on the network before the list changes. It lands in
+  // pendingInvitations, not members — inviting no longer grants access, so
+  // there's nothing to show in the actual member list yet.
   const addByEmail = async (addr, knownMember) => {
     setError('');
     setEmail('');
@@ -72,18 +84,15 @@ export default function TeamMembers({ team, onTeamDeleted }) {
     setSuggestionsOpen(false);
 
     const tempId = knownMember ? knownMember._id : `temp-${Date.now()}`;
-    // Search results only carry {_id, name, email} — a new addition is
-    // always a plain member, never the owner, regardless of which path
-    // supplied the row's identity.
-    const optimisticMember = { _id: tempId, name: addr, email: addr, ...knownMember, role: 'member', isOwner: false };
-    setMembers(prev => [...prev, optimisticMember]);
+    const optimisticInvite = { _id: tempId, name: addr, email: addr, ...knownMember };
+    setPendingInvitations(prev => [...prev, optimisticInvite]);
 
     try {
-      const newMember = await api.addTeamMember(team._id, addr);
-      setMembers(prev => prev.map(m => (m._id === tempId ? newMember : m)));
+      const invited = await api.addTeamMember(team._id, addr);
+      setPendingInvitations(prev => prev.map(m => (m._id === tempId ? invited : m)));
     } catch (e) {
       setError(e.message);
-      setMembers(prev => prev.filter(m => m._id !== tempId));
+      setPendingInvitations(prev => prev.filter(m => m._id !== tempId));
     }
   };
 
@@ -96,14 +105,19 @@ export default function TeamMembers({ team, onTeamDeleted }) {
   // Removed from local state right away — no need to wait on the network
   // before the row disappears. Resyncs from the server on failure, since the
   // optimistic removal would otherwise be left showing an incorrect state.
+  // Shared by both "Remove" (an accepted member) and "Cancel invite" (a
+  // pending one) — same DELETE endpoint either way, so this just clears the
+  // id out of whichever of the two lists it's actually in.
   const handleRemove = async (userId) => {
     setMembers(prev => prev.filter(m => m._id !== userId));
-    setConfirmingUserId(null);
+    setPendingInvitations(prev => prev.filter(m => m._id !== userId));
+    setConfirmingRemoval(null);
     try {
       await api.removeTeamMember(team._id, userId);
     } catch (e) {
       setError(e.message);
       load();
+      loadInvitations();
     }
   };
 
@@ -111,6 +125,27 @@ export default function TeamMembers({ team, onTeamDeleted }) {
     setMembers(prev => prev.map(m => (m._id === userId ? { ...m, role } : m)));
     try {
       await api.updateMemberRole(team._id, userId, role);
+    } catch (e) {
+      setError(e.message);
+      load();
+    }
+  };
+
+  // Swaps the two owner badges locally — the target becomes the owner, the
+  // acting owner drops to co-owner, matching what the server does in one
+  // request. onOwnershipTransferred tells App.jsx to update this same
+  // user's role on the team switcher too, since that lives in separate
+  // state up there.
+  const handleTransferOwnership = async (userId) => {
+    setConfirmingTransferUserId(null);
+    setMembers(prev => prev.map(m => {
+      if (m._id === userId) return { ...m, role: 'owner', isOwner: true };
+      if (m.isOwner) return { ...m, role: 'co_owner', isOwner: false };
+      return m;
+    }));
+    try {
+      await api.transferOwnership(team._id, userId);
+      onOwnershipTransferred(team._id, userId);
     } catch (e) {
       setError(e.message);
       load();
@@ -131,7 +166,25 @@ export default function TeamMembers({ team, onTeamDeleted }) {
     }
   };
 
-  const confirmingMember = members.find(m => m._id === confirmingUserId);
+  // Unlike handleDeleteTeam, this waits for the server to actually confirm
+  // before navigating away. Deleting can only ever fail on a rare network
+  // hiccup once the button is visible at all, but leaving has a real,
+  // expected rejection — the server re-checks ownership fresh, and the
+  // owner flag driving whether "Leave" even renders (team.isOwner, from
+  // App.jsx's teams list) can be stale. Navigating away optimistically here
+  // would make the team vanish from the sidebar even though the server
+  // never actually removed the membership.
+  const handleLeaveTeam = async () => {
+    setConfirmingLeaveTeam(false);
+    try {
+      await api.leaveTeam(team._id);
+      onTeamLeft(team._id);
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  const confirmingTransferMember = members.find(m => m._id === confirmingTransferUserId);
 
   return (
     <div className="team-members">
@@ -194,7 +247,15 @@ export default function TeamMembers({ team, onTeamDeleted }) {
               )}
               {!canManage && !m.isOwner && <span className="member-role-label">{m.role === 'co_owner' ? 'Co-owner' : 'Member'}</span>}
               {isOwner && !m.isOwner && (
-                <button onClick={() => setConfirmingUserId(m._id)} className="btn-ghost btn-ghost-danger btn-small">
+                <button onClick={() => setConfirmingTransferUserId(m._id)} className="btn-ghost btn-small">
+                  Make owner
+                </button>
+              )}
+              {isOwner && !m.isOwner && (
+                <button
+                  onClick={() => setConfirmingRemoval({ _id: m._id, name: m.name, isInvite: false })}
+                  className="btn-ghost btn-ghost-danger btn-small"
+                >
                   Remove
                 </button>
               )}
@@ -203,7 +264,30 @@ export default function TeamMembers({ team, onTeamDeleted }) {
         ))}
       </ul>
 
-      {isOwner && (
+      {canManage && pendingInvitations.length > 0 && (
+        <>
+          <p className="page-subtitle pending-invitations-label">Pending invitations</p>
+          <ul className="member-list">
+            {pendingInvitations.map(inv => (
+              <li key={inv._id}>
+                <span className="member-info">
+                  {inv.name} <span className="member-email">({inv.email})</span>
+                </span>
+                <span className="member-list-actions">
+                  <button
+                    onClick={() => setConfirmingRemoval({ _id: inv._id, name: inv.name, isInvite: true })}
+                    className="btn-ghost btn-ghost-danger btn-small"
+                  >
+                    Cancel invite
+                  </button>
+                </span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      {isOwner ? (
         <div className="danger-zone">
           <div>
             <h3>Delete {team.name}</h3>
@@ -211,13 +295,39 @@ export default function TeamMembers({ team, onTeamDeleted }) {
           </div>
           <button onClick={() => setConfirmingDeleteTeam(true)} className="btn-danger">Delete team</button>
         </div>
+      ) : (
+        // The owner can't leave from here — they'd need to transfer
+        // ownership first (enforced server-side too), so this only ever
+        // shows for a co-owner or member.
+        <div className="danger-zone">
+          <div>
+            <h3>Leave {team.name}</h3>
+            <p>You'll lose access to all of its boards, columns, and cards.</p>
+          </div>
+          <button onClick={() => setConfirmingLeaveTeam(true)} className="btn-danger">Leave team</button>
+        </div>
       )}
 
-      {confirmingMember && (
+      {confirmingRemoval && (
         <ConfirmDialog
-          message={`Remove ${confirmingMember.name} from ${team.name}?`}
-          onConfirm={() => handleRemove(confirmingMember._id)}
-          onCancel={() => setConfirmingUserId(null)}
+          message={
+            confirmingRemoval.isInvite
+              ? `Cancel the invitation to ${confirmingRemoval.name}?`
+              : `Remove ${confirmingRemoval.name} from ${team.name}?`
+          }
+          onConfirm={() => handleRemove(confirmingRemoval._id)}
+          onCancel={() => setConfirmingRemoval(null)}
+          confirmLabel={confirmingRemoval.isInvite ? 'Cancel invite' : 'Remove'}
+        />
+      )}
+
+      {confirmingTransferMember && (
+        <ConfirmDialog
+          message={`Make ${confirmingTransferMember.name} the owner of ${team.name}? You'll become a co-owner.`}
+          onConfirm={() => handleTransferOwnership(confirmingTransferMember._id)}
+          onCancel={() => setConfirmingTransferUserId(null)}
+          confirmLabel="OK"
+          danger={false}
         />
       )}
 
@@ -226,6 +336,15 @@ export default function TeamMembers({ team, onTeamDeleted }) {
           message={`Delete "${team.name}"? This permanently deletes all its boards, columns, and cards. This cannot be undone.`}
           onConfirm={handleDeleteTeam}
           onCancel={() => setConfirmingDeleteTeam(false)}
+        />
+      )}
+
+      {confirmingLeaveTeam && (
+        <ConfirmDialog
+          message={`Leave "${team.name}"? You'll lose access to its boards unless someone adds you back.`}
+          onConfirm={handleLeaveTeam}
+          onCancel={() => setConfirmingLeaveTeam(false)}
+          confirmLabel="Leave"
         />
       )}
     </div>

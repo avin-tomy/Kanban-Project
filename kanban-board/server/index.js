@@ -21,6 +21,7 @@ const cardsRouter = require('./routes/cards');
 const notesRouter = require('./routes/notes');
 const activityRouter = require('./routes/activity');
 const meRouter = require('./routes/me');
+const notificationsRouter = require('./routes/notifications');
 
 const app = express();
 const corsOptions = { origin: process.env.CLIENT_ORIGIN || '*' };
@@ -30,6 +31,7 @@ app.use(express.json());
 app.use('/auth', authRouter);
 app.use('/teams', requireAuth, teamsRouter);
 app.use('/me', requireAuth, meRouter);
+app.use('/notifications', requireAuth, notificationsRouter);
 // boards/columns/cards apply requireAuth per-route (inside each router) rather
 // than here, because they're mounted at '/' alongside static file serving and
 // the SPA fallback below — a blanket middleware at this mount point would run
@@ -96,6 +98,12 @@ function broadcastPresence(boardId) {
 }
 
 io.on('connection', (socket) => {
+  // A private room for this user alone — unlike team:<id>/board:<id>, no
+  // membership re-check is needed since it's just their own id, so every
+  // authenticated socket joins it immediately rather than waiting for an
+  // explicit join request. Notifications are emitted here.
+  socket.join(`user:${socket.userId}`);
+
   // Tracked so disconnect can clean up presence on every board this socket
   // had open, without needing to know the ids up front.
   socket.joinedBoardIds = new Set();

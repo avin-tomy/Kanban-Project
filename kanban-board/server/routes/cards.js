@@ -7,6 +7,7 @@ const User = require('../models/User');
 const { requireAuth } = require('../middleware/auth');
 const { requireColumnAccess, requireCardAccess, requireManagerRole, requireOwnerRole } = require('../middleware/teamAccess');
 const logActivity = require('../utils/activityLog');
+const notify = require('../utils/notify');
 
 const STATUS_LABELS = { not_started: 'Not started', working: 'Working', completed: 'Completed' };
 
@@ -103,10 +104,12 @@ router.patch('/cards/:id', requireAuth, requireCardAccess, async (req, res) => {
   if (description !== undefined && description !== card.description) {
     activityLines.push(`updated the description of "${card.title}"`);
   }
+  let notifyAssigneeId = null;
   if (assigneeId !== undefined && String(assigneeId || '') !== String(card.assigneeId || '')) {
     if (assigneeId) {
       const assignee = await User.findById(assigneeId);
       activityLines.push(`assigned "${card.title}" to ${assignee ? assignee.name : 'someone'}`);
+      notifyAssigneeId = assigneeId;
     } else {
       activityLines.push(`unassigned "${card.title}"`);
     }
@@ -135,6 +138,16 @@ router.patch('/cards/:id', requireAuth, requireCardAccess, async (req, res) => {
   await card.save();
   for (const detail of activityLines) {
     await logActivity(req.app, card.boardId, req.userId, detail);
+  }
+  if (notifyAssigneeId) {
+    await notify(req.app, {
+      userId: notifyAssigneeId,
+      actorId: req.userId,
+      type: 'card_assigned',
+      message: `assigned you to "${card.title}"`,
+      teamId: req.board.teamId,
+      boardId: card.boardId,
+    });
   }
   req.app.get('io').to(`board:${card.boardId}`).emit('board:changed', { boardId: card.boardId, kind: 'card-updated' });
   res.status(200).json(card);
