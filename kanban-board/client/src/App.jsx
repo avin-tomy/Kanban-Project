@@ -50,19 +50,34 @@ function AuthenticatedApp() {
     setView('boards');
   };
 
+  // The sidebar shows the new team the instant the form submits, using a
+  // temp id swapped for the real one once the POST resolves — the creator
+  // is always the owner, so that much is known before the request even
+  // goes out. Switching the active team still waits for the real id, since
+  // BoardList would otherwise fetch boards for an id that doesn't exist yet.
   const handleCreateTeam = async (name) => {
-    const team = await api.createTeam(name);
-    await loadTeams();
-    setCurrentTeamId(team._id);
+    const tempId = `temp-${Date.now()}`;
+    setTeams(prev => [...(prev || []), { _id: tempId, name, role: 'owner', isOwner: true }]);
+
+    try {
+      const team = await api.createTeam(name);
+      setTeams(prev => prev.map(t => (t._id === tempId ? { ...team, role: 'owner', isOwner: true } : t)));
+      setCurrentTeamId(team._id);
+    } catch (e) {
+      setError(e.message);
+      setTeams(prev => prev.filter(t => t._id !== tempId));
+    }
   };
 
   // After deleting the current team, drop back to the boards view and
-  // reload the team list — the effect above then picks a remaining team
-  // (or falls through to the "no teams yet" empty state if none are left).
-  const handleTeamDeleted = async () => {
+  // remove it from local state right away — the effect above then picks a
+  // remaining team (or falls through to the "no teams yet" empty state if
+  // none are left). No reload needed: TeamMembers already fires the delete
+  // request itself, so this is just reflecting a change already in flight.
+  const handleTeamDeleted = (teamId) => {
     setView('boards');
     setSelectedBoardId(null);
-    await loadTeams();
+    setTeams(prev => (prev || []).filter(t => t._id !== teamId));
   };
 
   // My Tasks spans every team, so opening one from there has to switch the

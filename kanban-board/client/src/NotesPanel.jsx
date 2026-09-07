@@ -72,15 +72,33 @@ export default function NotesPanel({ boardId }) {
     return () => document.removeEventListener('click', handleClickOutside);
   }, [pickerNoteId]);
 
+  // We already know everything an optimistic note needs — it's the current
+  // user's own text, posted right now — so it appears (and the list
+  // auto-scrolls to it, per the effect above) before the request even
+  // resolves, not after a create-then-reload round trip.
   const handleAdd = async (e) => {
     e.preventDefault();
-    if (!text.trim()) return;
+    const trimmedText = text.trim();
+    if (!trimmedText) return;
+    const tempId = `temp-${Date.now()}`;
+    const optimisticNote = {
+      _id: tempId,
+      boardId,
+      authorId: user._id,
+      authorName: user.name,
+      text: trimmedText,
+      reactions: [],
+      createdAt: new Date().toISOString(),
+    };
+    setNotes(prev => [...prev, optimisticNote]);
+    setText('');
+
     try {
-      await api.createNote(boardId, text.trim());
-      setText('');
-      load();
+      const created = await api.createNote(boardId, trimmedText);
+      setNotes(prev => prev.map(n => (n._id === tempId ? { ...created, authorName: user.name, reactions: [] } : n)));
     } catch (e) {
       setError(e.message);
+      setNotes(prev => prev.filter(n => n._id !== tempId));
     }
   };
 

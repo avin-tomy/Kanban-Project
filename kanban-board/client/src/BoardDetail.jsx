@@ -66,22 +66,50 @@ export default function BoardDetail({ boardId, onBack }) {
     };
   }, [boardId]);
 
+  // Same temp-id-then-swap shape as handleAddCard below: the new column
+  // shows up the instant the form submits, not after the create request and
+  // then a full board reload both round-trip.
   const handleAddColumn = async (e) => {
     e.preventDefault();
-    if (!newColumnName.trim()) return;
-    await api.createColumn(boardId, newColumnName.trim());
+    const trimmedName = newColumnName.trim();
+    if (!trimmedName) return;
+    const tempId = `temp-${Date.now()}`;
+    setBoard(prev => ({ ...prev, columns: [...prev.columns, { _id: tempId, name: trimmedName, cards: [] }] }));
     setNewColumnName('');
-    load();
+
+    try {
+      const created = await api.createColumn(boardId, trimmedName);
+      setBoard(prev => ({
+        ...prev,
+        columns: prev.columns.map(col => (col._id === tempId ? { ...created, cards: [] } : col)),
+      }));
+    } catch (e) {
+      setError(e.message);
+      load();
+    }
   };
 
   const handleDeleteColumn = async (columnId) => {
-    await api.deleteColumn(columnId);
-    load();
+    setBoard(prev => ({ ...prev, columns: prev.columns.filter(col => col._id !== columnId) }));
+    try {
+      await api.deleteColumn(columnId);
+    } catch (e) {
+      setError(e.message);
+      load();
+    }
   };
 
   const handleDeleteCard = async (cardId) => {
-    await api.deleteCard(cardId);
-    load();
+    setBoard(prev => ({
+      ...prev,
+      columns: prev.columns.map(col => ({ ...col, cards: col.cards.filter(c => c._id !== cardId) })),
+    }));
+    try {
+      await api.deleteCard(cardId);
+    } catch (e) {
+      setError(e.message);
+      load();
+    }
   };
 
   // Shows the new card immediately with a temporary id, instead of waiting

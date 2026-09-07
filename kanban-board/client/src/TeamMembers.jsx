@@ -58,16 +58,32 @@ export default function TeamMembers({ team, onTeamDeleted }) {
     return () => document.removeEventListener('click', handleClickOutside);
   }, [suggestionsOpen]);
 
-  const addByEmail = async (addr) => {
+  // A row appears before the request even goes out — not just before it
+  // resolves. Clicking a suggestion already gives us the real name/email/id,
+  // so that row is fully accurate from the start; typing a raw email with no
+  // matching suggestion has nothing but the address to show, so a temporary
+  // row uses that as a stand-in name until the POST response swaps in the
+  // account's real name. Either way, nothing here waits on the network
+  // before the list changes.
+  const addByEmail = async (addr, knownMember) => {
     setError('');
+    setEmail('');
+    setSuggestions([]);
+    setSuggestionsOpen(false);
+
+    const tempId = knownMember ? knownMember._id : `temp-${Date.now()}`;
+    // Search results only carry {_id, name, email} — a new addition is
+    // always a plain member, never the owner, regardless of which path
+    // supplied the row's identity.
+    const optimisticMember = { _id: tempId, name: addr, email: addr, ...knownMember, role: 'member', isOwner: false };
+    setMembers(prev => [...prev, optimisticMember]);
+
     try {
-      await api.addTeamMember(team._id, addr);
-      setEmail('');
-      setSuggestions([]);
-      setSuggestionsOpen(false);
-      load();
+      const newMember = await api.addTeamMember(team._id, addr);
+      setMembers(prev => prev.map(m => (m._id === tempId ? newMember : m)));
     } catch (e) {
       setError(e.message);
+      setMembers(prev => prev.filter(m => m._id !== tempId));
     }
   };
 
@@ -77,25 +93,42 @@ export default function TeamMembers({ team, onTeamDeleted }) {
     addByEmail(email.trim());
   };
 
+  // Removed from local state right away — no need to wait on the network
+  // before the row disappears. Resyncs from the server on failure, since the
+  // optimistic removal would otherwise be left showing an incorrect state.
   const handleRemove = async (userId) => {
-    await api.removeTeamMember(team._id, userId);
+    setMembers(prev => prev.filter(m => m._id !== userId));
     setConfirmingUserId(null);
-    load();
-  };
-
-  const handleRoleChange = async (userId, role) => {
     try {
-      await api.updateMemberRole(team._id, userId, role);
-      load();
+      await api.removeTeamMember(team._id, userId);
     } catch (e) {
       setError(e.message);
+      load();
     }
   };
 
+  const handleRoleChange = async (userId, role) => {
+    setMembers(prev => prev.map(m => (m._id === userId ? { ...m, role } : m)));
+    try {
+      await api.updateMemberRole(team._id, userId, role);
+    } catch (e) {
+      setError(e.message);
+      load();
+    }
+  };
+
+  // Navigates away immediately rather than waiting on the delete request —
+  // this page is about to unmount either way, so there's nothing to roll
+  // back to locally if the request fails; a rare failure just leaves the
+  // team intact server-side for the user to find still listed.
   const handleDeleteTeam = async () => {
-    await api.deleteTeam(team._id);
     setConfirmingDeleteTeam(false);
-    onTeamDeleted();
+    onTeamDeleted(team._id);
+    try {
+      await api.deleteTeam(team._id);
+    } catch (e) {
+      setError(e.message);
+    }
   };
 
   const confirmingMember = members.find(m => m._id === confirmingUserId);
@@ -103,7 +136,10 @@ export default function TeamMembers({ team, onTeamDeleted }) {
   return (
     <div className="team-members">
       <div className="page-header">
-        <h1>{team.name} — Members</h1>
+        <div>
+          <h1>{team.name}</h1>
+          <p className="page-subtitle">Members</p>
+        </div>
       </div>
       {error && <p className="error">{error}</p>}
 
@@ -122,7 +158,7 @@ export default function TeamMembers({ team, onTeamDeleted }) {
               <ul className="member-suggestions">
                 {suggestions.map(s => (
                   <li key={s._id}>
-                    <button type="button" onClick={() => addByEmail(s.email)}>
+                    <button type="button" onClick={() => addByEmail(s.email, s)}>
                       <span className="member-suggestion-name">{s.name}</span>
                       <span className="member-suggestion-email">{s.email}</span>
                     </button>
@@ -138,7 +174,7 @@ export default function TeamMembers({ team, onTeamDeleted }) {
       <ul className="member-list">
         {members.map(m => (
           <li key={m._id}>
-            <span>
+            <span className="member-info">
               {m.name} <span className="member-email">({m.email})</span>
               {m.isOwner && <span className="member-owner-badge">Owner</span>}
             </span>

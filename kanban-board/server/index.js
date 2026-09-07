@@ -103,19 +103,33 @@ io.on('connection', (socket) => {
   // A valid JWT only proves who the socket is; joining a room still requires
   // checking that user actually belongs to the team/board being requested —
   // otherwise anyone with an account could eavesdrop on any team's changes.
+  // The id itself is client-supplied and unvalidated (e.g. a client that
+  // optimistically renders a not-yet-confirmed item under a temp id, then
+  // gets clicked before the swap), so a malformed id must fail the
+  // membership check quietly rather than throw a CastError that — being
+  // inside an async socket handler with no rejection handler — would
+  // otherwise crash the whole process for every connected user.
   socket.on('join:team', async (teamId) => {
-    if (await TeamMember.exists({ teamId, userId: socket.userId })) socket.join(`team:${teamId}`);
+    try {
+      if (await TeamMember.exists({ teamId, userId: socket.userId })) socket.join(`team:${teamId}`);
+    } catch {
+      // Not a valid id — nothing to join.
+    }
   });
   socket.on('leave:team', (teamId) => socket.leave(`team:${teamId}`));
 
   socket.on('join:board', async (boardId) => {
-    const board = await Board.findById(boardId);
-    if (board && await TeamMember.exists({ teamId: board.teamId, userId: socket.userId })) {
-      socket.join(`board:${boardId}`);
-      socket.joinedBoardIds.add(boardId);
-      if (!boardPresence.has(boardId)) boardPresence.set(boardId, new Map());
-      boardPresence.get(boardId).set(socket.id, { userId: socket.userId, name: socket.userName, email: socket.userEmail });
-      broadcastPresence(boardId);
+    try {
+      const board = await Board.findById(boardId);
+      if (board && await TeamMember.exists({ teamId: board.teamId, userId: socket.userId })) {
+        socket.join(`board:${boardId}`);
+        socket.joinedBoardIds.add(boardId);
+        if (!boardPresence.has(boardId)) boardPresence.set(boardId, new Map());
+        boardPresence.get(boardId).set(socket.id, { userId: socket.userId, name: socket.userName, email: socket.userEmail });
+        broadcastPresence(boardId);
+      }
+    } catch {
+      // Not a valid id — nothing to join.
     }
   });
 

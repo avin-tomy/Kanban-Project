@@ -80,6 +80,11 @@ body {
   color: var(--text-muted);
 }
 
+.sidebar-nav-item-pending {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .sidebar-nav-item-active {
   background: var(--surface);
   color: var(--text);
@@ -104,6 +109,12 @@ h1 {
   font-size: 30px;
   letter-spacing: -0.01em;
   margin: 0;
+}
+
+.page-subtitle {
+  margin: 12px 0 0 0;
+  color: var(--text-muted);
+  font-size: 18px;
 }
 
 .page-header {
@@ -1468,14 +1479,20 @@ input:focus {
 
 .member-list li {
   display: flex;
-  justify-content: space-between;
+  flex-wrap: wrap;
   align-items: center;
+  gap: 12px;
   min-height: 56px;
   background: var(--surface);
   border: 1px solid var(--border);
   padding: 12px 16px;
   border-radius: var(--radius);
   margin-bottom: 8px;
+}
+
+.member-info {
+  min-width: 0;
+  overflow-wrap: break-word;
 }
 
 .member-email {
@@ -1497,6 +1514,13 @@ input:focus {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-shrink: 0;
+  /* margin-left: auto (rather than justify-content: space-between on the
+     row) pushes this to the right edge whether it's sharing the first line
+     with a short name or standing alone on a wrapped second line after a
+     long name/email — space-between only pushes an item right when there's
+     another item left on the same line to push away from. */
+  margin-left: auto;
 }
 
 .member-role-select {

@@ -46,15 +46,22 @@ export default function Sidebar({ teams, currentTeamId, onSwitchTeam, onCreateTe
 
       <div className="sidebar-section-label">Team</div>
       <ul className="sidebar-nav">
-        {teams.map(team => (
-          <li
-            key={team._id}
-            className={`sidebar-nav-item${team._id === currentTeamId ? ' sidebar-nav-item-active' : ''}`}
-            onClick={() => handleSwitchTeam(team._id)}
-          >
-            {team.name}
-          </li>
-        ))}
+        {teams.map(team => {
+          // A freshly-created team renders under a temp id until the create
+          // request resolves — switching into it before then would try to
+          // fetch boards/join socket rooms for an id the server has never
+          // heard of, so it's shown but not yet clickable.
+          const isPending = team._id.startsWith('temp-');
+          return (
+            <li
+              key={team._id}
+              className={`sidebar-nav-item${team._id === currentTeamId ? ' sidebar-nav-item-active' : ''}${isPending ? ' sidebar-nav-item-pending' : ''}`}
+              onClick={() => { if (!isPending) handleSwitchTeam(team._id); }}
+            >
+              {team.name}
+            </li>
+          );
+        })}
       </ul>
 
       {creating ? (

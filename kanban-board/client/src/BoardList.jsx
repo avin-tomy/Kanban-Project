@@ -29,22 +29,35 @@ export default function BoardList({ teamId, onOpenBoard, role }) {
     };
   }, [teamId]);
 
+  // Shows the new board immediately with a temp id, swapped for the real
+  // one once the create request resolves — same shape as card/column/note
+  // creation elsewhere in the app.
   const handleCreate = async (e) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
+    const tempId = `temp-${Date.now()}`;
+    setBoards(prev => [...prev, { _id: tempId, name: trimmedName, teamId }]);
+    setName('');
+
     try {
-      await api.createBoard(teamId, name.trim());
-      setName('');
-      load();
+      const created = await api.createBoard(teamId, trimmedName);
+      setBoards(prev => prev.map(b => (b._id === tempId ? created : b)));
     } catch (e) {
       setError(e.message);
+      setBoards(prev => prev.filter(b => b._id !== tempId));
     }
   };
 
   const handleDelete = async (id) => {
-    await api.deleteBoard(id);
+    setBoards(prev => prev.filter(b => b._id !== id));
     setConfirmingId(null);
-    load();
+    try {
+      await api.deleteBoard(id);
+    } catch (e) {
+      setError(e.message);
+      load();
+    }
   };
 
   const confirmingBoard = boards.find(b => b._id === confirmingId);
