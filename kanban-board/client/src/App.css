@@ -125,6 +125,13 @@ h1 {
   margin-bottom: 40px;
 }
 
+/* An empty-state message sits directly under the header with nothing else
+   (a list, a form) between them, so the full 40px meant to separate a
+   header from a body of content reads as an oversized gap here. */
+.page-header:has(+ .empty-state) {
+  margin-bottom: 16px;
+}
+
 h3 {
   font-size: 13px;
   font-weight: 700;
