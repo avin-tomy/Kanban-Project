@@ -195,6 +195,23 @@ export default function BoardDetail({ boardId, onBack }) {
     }
   };
 
+  const handleSetDescription = async (cardId, description) => {
+    setBoard(prev => ({
+      ...prev,
+      columns: prev.columns.map(col => ({
+        ...col,
+        cards: col.cards.map(c => (c._id === cardId ? { ...c, description } : c)),
+      })),
+    }));
+
+    try {
+      await api.updateCard(cardId, { description });
+    } catch (e) {
+      setError(e.message);
+      load();
+    }
+  };
+
   const findColumnOf = (cardId) => board.columns.find(col => col.cards.some(c => c._id === cardId));
 
   // Fires continuously while a card is dragged over something. dnd-kit's
@@ -339,13 +356,13 @@ export default function BoardDetail({ boardId, onBack }) {
                 <Column
                   key={col._id}
                   column={col}
-                  onChange={load}
                   onAddCard={handleAddCard}
                   onDeleteColumn={handleDeleteColumn}
                   onDeleteCard={handleDeleteCard}
                   onAssignCard={handleAssignCard}
                   onSetDueDate={handleSetDueDate}
                   onSetStatus={handleSetStatus}
+                  onSetDescription={handleSetDescription}
                   teamMembers={teamMembers}
                   role={board.role}
                 />
@@ -419,7 +436,7 @@ function PresenceList({ users }) {
   );
 }
 
-function Column({ column, onChange, onAddCard, onDeleteColumn, onDeleteCard, onAssignCard, onSetDueDate, onSetStatus, teamMembers, role }) {
+function Column({ column, onAddCard, onDeleteColumn, onDeleteCard, onAssignCard, onSetDueDate, onSetStatus, onSetDescription, teamMembers, role }) {
   const [title, setTitle] = useState('');
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const canManage = role === 'owner' || role === 'co_owner';
@@ -498,10 +515,10 @@ function Column({ column, onChange, onAddCard, onDeleteColumn, onDeleteCard, onA
               card={card}
               columnId={column._id}
               onDelete={onDeleteCard}
-              onUpdate={onChange}
               onAssign={onAssignCard}
               onSetDueDate={onSetDueDate}
               onSetStatus={onSetStatus}
+              onSetDescription={onSetDescription}
               teamMembers={teamMembers}
               role={role}
             />
@@ -518,7 +535,7 @@ const formatCreatedDate = (iso) => new Date(iso).toLocaleDateString(undefined, {
 
 const formatAssignedDate = (iso) => new Date(iso).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
 
-function Card({ card, columnId, onDelete, onUpdate, onAssign, onSetDueDate, onSetStatus, teamMembers, role }) {
+function Card({ card, columnId, onDelete, onAssign, onSetDueDate, onSetStatus, onSetDescription, teamMembers, role }) {
   const { user } = useAuth();
   const [confirming, setConfirming] = useState(false);
   const [editingDesc, setEditingDesc] = useState(false);
@@ -545,10 +562,9 @@ function Card({ card, columnId, onDelete, onUpdate, onAssign, onSetDueDate, onSe
     setEditingDesc(true);
   };
 
-  const handleSaveDescription = async () => {
-    await api.updateCard(card._id, { description: descDraft });
+  const handleSaveDescription = () => {
     setEditingDesc(false);
-    onUpdate();
+    onSetDescription(card._id, descDraft);
   };
 
   const missedDeadline = isPastDue(card.dueDate) && card.status !== 'completed';

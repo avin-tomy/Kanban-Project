@@ -33,10 +33,15 @@ function AuthenticatedApp() {
 
   // Once teams load, make sure the "current" team is actually one of theirs
   // (it may have been removed since, or never set for a first-time user).
+  // A pending (temp-id) team is never picked here — it doesn't exist on the
+  // server yet, so switching to it would fetch boards for an id nothing
+  // recognizes. handleCreateTeam sets the real id itself once the POST
+  // resolves.
   useEffect(() => {
     if (!teams) return;
     if (!teams.some(t => t._id === currentTeamId)) {
-      setCurrentTeamId(teams[0]?._id ?? null);
+      const firstReal = teams.find(t => !t._id.startsWith('temp-'));
+      setCurrentTeamId(firstReal?._id ?? null);
     }
   }, [teams]);
 
