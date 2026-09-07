@@ -50,8 +50,17 @@ export function AuthProvider({ children }) {
     applySession(token, user);
   };
 
+  const forgotPassword = (email) => api.forgotPassword(email);
+
+  // Same shape as login/signup — a successful reset signs you straight in
+  // rather than sending you to re-enter the password you just chose.
+  const resetPassword = async (resetToken, password) => {
+    const { token, user } = await api.resetPassword(resetToken, password);
+    applySession(token, user);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, signup, logout, forgotPassword, resetPassword }}>
       {children}
     </AuthContext.Provider>
   );

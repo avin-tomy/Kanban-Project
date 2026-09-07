@@ -153,6 +153,11 @@ router.post('/:teamId/accept', async (req, res) => {
   await membership.save();
 
   const team = await Team.findById(req.params.teamId);
+  // The invite notification that got them here is now resolved — without
+  // this it would still be sitting in their list, and a reload would bring
+  // back its Accept/Decline buttons for an invite that no longer exists to
+  // act on (POST .../accept would just 404 at that point).
+  await notify.unnotify(req.app, { userId: req.userId, type: 'team_invited', teamId: team._id });
   await notify(req.app, {
     userId: team.ownerId,
     actorId: req.userId,
@@ -164,15 +169,26 @@ router.post('/:teamId/accept', async (req, res) => {
   res.status(200).json({ teamId: req.params.teamId });
 });
 
-// DELETE /teams/:teamId/accept — declining an invite. No notify() call —
-// unlike accepting, declining isn't something the inviter's badge needs to
-// surface — but the socket event still fires, so an owner/co-owner with the
-// Team Members page open sees the pending row disappear live either way.
+// DELETE /teams/:teamId/accept — declining an invite. Notifies the team's
+// owner, same as accepting does, so they know not to expect the invitee
+// rather than just watching the pending row silently vanish.
 router.delete('/:teamId/accept', async (req, res) => {
   const membership = await TeamMember.findOne({ teamId: req.params.teamId, userId: req.userId, status: 'pending' });
   if (!membership) return res.status(404).json({ error: 'No pending invitation to this team' });
 
   await membership.deleteOne();
+
+  const team = await Team.findById(req.params.teamId);
+  // Same reasoning as the accept route above — this invite is resolved now,
+  // so it shouldn't linger in the invitee's own notification list.
+  await notify.unnotify(req.app, { userId: req.userId, type: 'team_invited', teamId: team._id });
+  await notify(req.app, {
+    userId: team.ownerId,
+    actorId: req.userId,
+    type: 'invite_declined',
+    message: `declined your invitation to join "${team.name}"`,
+    teamId: team._id,
+  });
   req.app.get('io').to(`team:${req.params.teamId}`).emit('team:membership-changed', { teamId: req.params.teamId, kind: 'invite-declined' });
   res.status(204).send();
 });

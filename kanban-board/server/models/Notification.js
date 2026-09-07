@@ -10,7 +10,7 @@ const notificationSchema = new mongoose.Schema({
   actorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   type: {
     type: String,
-    enum: ['card_assigned', 'team_invited', 'invite_accepted', 'ownership_transferred', 'role_changed', 'removed_from_team'],
+    enum: ['card_assigned', 'team_invited', 'invite_accepted', 'invite_declined', 'ownership_transferred', 'role_changed', 'removed_from_team'],
     required: true,
   },
   message: { type: String, required: true },

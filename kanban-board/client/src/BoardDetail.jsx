@@ -79,7 +79,14 @@ export default function BoardDetail({ boardId, onBack }) {
     const socket = getSocket();
     if (!socket) return;
     socket.emit('join:team', board.teamId);
-    const onMembershipChanged = (payload) => { if (payload.teamId === board.teamId) loadTeamMembers(); };
+    // Also reloads the board itself, not just the roster — `board.role`
+    // (the viewer's own role, resolved server-side on every fetch) is what
+    // gates the Add column/Add card forms below, and it's only ever set
+    // once on mount otherwise. Without this, getting promoted to co-owner
+    // while sitting on a board wouldn't unlock those controls until the
+    // board was reloaded, even though the sidebar's own Boards list already
+    // reflects the new role live.
+    const onMembershipChanged = (payload) => { if (payload.teamId === board.teamId) { load(); loadTeamMembers(); } };
     socket.on('team:membership-changed', onMembershipChanged);
     return () => {
       socket.emit('leave:team', board.teamId);

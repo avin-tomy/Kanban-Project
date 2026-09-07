@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from './AuthContext';
 
-export default function Login({ onSwitchToSignup }) {
+export default function Login({ onSwitchToSignup, onForgotPassword }) {
   const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -47,6 +47,9 @@ export default function Login({ onSwitchToSignup }) {
             {submitting ? 'Logging in…' : 'Log in'}
           </button>
         </form>
+        <p className="auth-switch">
+          <button type="button" className="link-button" onClick={onForgotPassword}>Forgot password?</button>
+        </p>
         <p className="auth-switch">
           Don't have an account?{' '}
           <button type="button" className="link-button" onClick={onSwitchToSignup}>Sign up</button>

@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { useAuth } from './auth/AuthContext';
 import Login from './auth/Login';
 import Signup from './auth/Signup';
+import ForgotPassword from './auth/ForgotPassword';
+import ResetPassword from './auth/ResetPassword';
 import BoardList from './BoardList';
 import BoardDetail from './BoardDetail';
 import TeamMembers from './TeamMembers';
@@ -14,10 +16,10 @@ import './App.css';
 const TEAM_STORAGE_KEY = 'kanban_current_team';
 
 function AuthGate() {
-  const [showSignup, setShowSignup] = useState(false);
-  return showSignup
-    ? <Signup onSwitchToLogin={() => setShowSignup(false)} />
-    : <Login onSwitchToSignup={() => setShowSignup(true)} />;
+  const [screen, setScreen] = useState('login'); // 'login' | 'signup' | 'forgot'
+  if (screen === 'signup') return <Signup onSwitchToLogin={() => setScreen('login')} />;
+  if (screen === 'forgot') return <ForgotPassword onBackToLogin={() => setScreen('login')} />;
+  return <Login onSwitchToSignup={() => setScreen('signup')} onForgotPassword={() => setScreen('forgot')} />;
 }
 
 function AuthenticatedApp() {
@@ -199,6 +201,15 @@ function AuthenticatedApp() {
 
 function App() {
   const { user, loading } = useAuth();
+
+  // The rest of the app deliberately has no router (see Sidebar's manual
+  // view-switching) — this is the one screen that has to be reachable by a
+  // plain URL, since that's what the "emailed" reset link points to. Checked
+  // before the loading/auth gate below since resetting shouldn't depend on
+  // whether this device happens to still have a valid session.
+  if (window.location.pathname === '/reset-password') {
+    return <ResetPassword token={new URLSearchParams(window.location.search).get('token')} />;
+  }
 
   if (loading) return <p style={{ padding: 24 }}>Loading…</p>;
   if (!user) return <AuthGate />;
