@@ -267,6 +267,17 @@ router.delete('/:teamId/members/:userId', requireTeamManager(), async (req, res)
 
   const wasPending = membership.status === 'pending';
   await membership.deleteOne();
+  if (wasPending) {
+    await notify.unnotify(req.app, { userId: req.params.userId, type: 'team_invited', teamId: req.team._id });
+  } else {
+    await notify(req.app, {
+      userId: req.params.userId,
+      actorId: req.userId,
+      type: 'removed_from_team',
+      message: `removed you from "${req.team.name}"`,
+      teamId: req.team._id,
+    });
+  }
   req.app.get('io').to(`team:${req.team._id}`).emit('team:membership-changed', { teamId: req.team._id, kind: wasPending ? 'invite-cancelled' : 'member-removed' });
   res.status(204).send();
 });

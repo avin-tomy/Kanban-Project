@@ -41,16 +41,23 @@ export default function BoardDetail({ boardId, onBack }) {
   useEffect(() => { load(); }, [boardId]);
 
   // Card assignment needs the board's own team roster (who's even eligible
-  // to be assigned) — fetched once the board tells us which team it's in.
-  useEffect(() => {
+  // to be assigned) — fetched once the board tells us which team it's in,
+  // then kept live below.
+  const loadTeamMembers = () => {
     if (!board?.teamId) return;
     api.getTeamMembers(board.teamId).then(setTeamMembers).catch(() => {});
-  }, [board?.teamId]);
+  };
+
+  useEffect(loadTeamMembers, [board?.teamId]);
 
   // Live updates: any column/card change another team member makes to this
   // board refreshes it here too, without a manual reload. The server also
   // broadcasts who currently has this same board open, keyed off the same
-  // join/leave — see index.js's boardPresence tracking.
+  // join/leave — see index.js's boardPresence tracking. Also joins the
+  // board's team room so the assignee roster above stays current if someone
+  // accepts an invite, is removed, or changes role while this board is open
+  // — otherwise a newly-joined member wouldn't show up in the assign menu
+  // until the board was reloaded.
   useEffect(() => {
     const socket = getSocket();
     if (!socket) return;
@@ -66,6 +73,19 @@ export default function BoardDetail({ boardId, onBack }) {
       setPresentUsers([]);
     };
   }, [boardId]);
+
+  useEffect(() => {
+    if (!board?.teamId) return;
+    const socket = getSocket();
+    if (!socket) return;
+    socket.emit('join:team', board.teamId);
+    const onMembershipChanged = (payload) => { if (payload.teamId === board.teamId) loadTeamMembers(); };
+    socket.on('team:membership-changed', onMembershipChanged);
+    return () => {
+      socket.emit('leave:team', board.teamId);
+      socket.off('team:membership-changed', onMembershipChanged);
+    };
+  }, [board?.teamId]);
 
   // Same temp-id-then-swap shape as handleAddCard below: the new column
   // shows up the instant the form submits, not after the create request and

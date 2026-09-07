@@ -37,4 +37,26 @@ router.patch('/:id', async (req, res) => {
   res.status(200).json(notification);
 });
 
+// DELETE /notifications/:id — dismiss a single notification. Not for a team
+// invite: that one only goes away by being accepted or declined (or by the
+// inviter canceling it — see utils/notify.js's unnotify), since dismissing
+// it here would just hide something still awaiting a response.
+router.delete('/:id', async (req, res) => {
+  const notification = await Notification.findOne({ _id: req.params.id, userId: req.userId });
+  if (!notification) return res.status(404).json({ error: 'Notification not found' });
+  if (notification.type === 'team_invited') {
+    return res.status(400).json({ error: 'Accept or decline the invitation instead of clearing it' });
+  }
+
+  await notification.deleteOne();
+  res.status(204).send();
+});
+
+// DELETE /notifications — clear everything except pending team invites, for
+// the same reason a single one can't be cleared above.
+router.delete('/', async (req, res) => {
+  await Notification.deleteMany({ userId: req.userId, type: { $ne: 'team_invited' } });
+  res.status(204).send();
+});
+
 module.exports = router;

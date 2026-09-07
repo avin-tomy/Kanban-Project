@@ -91,4 +91,6 @@ export const api = {
   markNotificationRead: (id) =>
     request(`/notifications/${id}`, { method: 'PATCH', body: JSON.stringify({ read: true }) }),
   markAllNotificationsRead: () => request('/notifications/read-all', { method: 'POST' }),
+  clearNotification: (id) => request(`/notifications/${id}`, { method: 'DELETE' }),
+  clearAllNotifications: () => request('/notifications', { method: 'DELETE' }),
 };

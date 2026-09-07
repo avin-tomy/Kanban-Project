@@ -46,8 +46,23 @@ export default function NotificationsBell({ onOpenNotification, mobileMenuOpen }
       setItems(prev => [notification, ...prev]);
       setUnreadCount(count => count + 1);
     };
+    // A team invite that's canceled before the recipient responds is
+    // withdrawn server-side (see utils/notify.js's unnotify) rather than
+    // left to error out when clicked — this drops it from an already-open
+    // bell the same way.
+    const onRemoved = ({ _id }) => {
+      setItems(prev => {
+        const target = prev.find(n => n._id === _id);
+        if (target && !target.read) setUnreadCount(count => Math.max(0, count - 1));
+        return prev.filter(n => n._id !== _id);
+      });
+    };
     socket.on('notification:new', onNew);
-    return () => socket.off('notification:new', onNew);
+    socket.on('notification:removed', onRemoved);
+    return () => {
+      socket.off('notification:new', onNew);
+      socket.off('notification:removed', onRemoved);
+    };
   }, []);
 
   // Optimistically marks one read (same shape as everywhere else in the app).
@@ -109,6 +124,33 @@ export default function NotificationsBell({ onOpenNotification, mobileMenuOpen }
     }
   };
 
+  // A team invite only goes away by being accepted, declined, or canceled
+  // by the inviter (see the server-side check in routes/notifications.js) —
+  // clearing it here would just hide something still awaiting a response,
+  // so this is only ever called for a non-invite item.
+  const handleClearOne = async (notification) => {
+    setItems(prev => prev.filter(n => n._id !== notification._id));
+    if (!notification.read) setUnreadCount(count => Math.max(0, count - 1));
+    try {
+      await api.clearNotification(notification._id);
+    } catch (e) {
+      setError(e.message);
+      api.getNotifications().then(({ items, unreadCount }) => { setItems(items); setUnreadCount(unreadCount); }).catch(() => {});
+    }
+  };
+
+  const handleClearAll = async () => {
+    const remainingUnread = items.filter(n => n.type === 'team_invited' && !n.read).length;
+    setItems(prev => prev.filter(n => n.type === 'team_invited'));
+    setUnreadCount(remainingUnread);
+    try {
+      await api.clearAllNotifications();
+    } catch (e) {
+      setError(e.message);
+      api.getNotifications().then(({ items, unreadCount }) => { setItems(items); setUnreadCount(unreadCount); }).catch(() => {});
+    }
+  };
+
   return (
     <div className="notifications-menu">
       <button
@@ -131,9 +173,14 @@ export default function NotificationsBell({ onOpenNotification, mobileMenuOpen }
           <div className="activity-dropdown notifications-dropdown">
             <div className="presence-dropdown-label notifications-dropdown-label">
               <span>Notifications</span>
-              {unreadCount > 0 && (
-                <button className="link-button" onClick={handleMarkAllRead}>Mark all read</button>
-              )}
+              <span className="notifications-dropdown-actions">
+                {unreadCount > 0 && (
+                  <button className="link-button" onClick={handleMarkAllRead}>Mark all read</button>
+                )}
+                {items.some(n => n.type !== 'team_invited') && (
+                  <button className="link-button" onClick={handleClearAll}>Clear all</button>
+                )}
+              </span>
             </div>
             {error && <p className="error">{error}</p>}
             {items.length === 0 ? (
@@ -149,8 +196,21 @@ export default function NotificationsBell({ onOpenNotification, mobileMenuOpen }
                       className={`notification-item${n.read ? '' : ' notification-item-unread'}`}
                       onClick={isPendingInvite ? undefined : () => handleClick(n)}
                     >
-                      <span className="activity-detail"><strong>{n.actorName}</strong> {n.message}</span>
-                      <span className="activity-time">{formatTime(n.createdAt)}</span>
+                      <div className="notification-item-row">
+                        <div className="notification-item-text">
+                          <span className="activity-detail"><strong>{n.actorName}</strong> {n.message}</span>
+                          <span className="activity-time">{formatTime(n.createdAt)}</span>
+                        </div>
+                        {n.type !== 'team_invited' && (
+                          <button
+                            className="icon-btn"
+                            onClick={(e) => { e.stopPropagation(); handleClearOne(n); }}
+                            aria-label="Clear notification"
+                          >
+                            &times;
+                          </button>
+                        )}
+                      </div>
                       {isPendingInvite && (
                         <div className="notification-invite-actions" onClick={e => e.stopPropagation()}>
                           <button className="btn-ghost btn-small" disabled={isProcessing} onClick={() => handleDeclineInvite(n)}>

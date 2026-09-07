@@ -530,8 +530,34 @@ input:focus {
   justify-content: space-between;
 }
 
+.notifications-dropdown-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .notification-item {
   cursor: pointer;
+}
+
+.notification-item-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.notification-item-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.notification-item-row .icon-btn {
+  flex-shrink: 0;
+  font-size: 16px;
+  padding: 0 2px;
 }
 
 .notification-item:hover {
