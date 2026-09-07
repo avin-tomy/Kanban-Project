@@ -103,9 +103,14 @@ export default function NotesPanel({ boardId }) {
   };
 
   const handleDelete = async (noteId) => {
-    await api.deleteNote(noteId);
+    setNotes(prev => prev.filter(n => n._id !== noteId));
     setConfirmingId(null);
-    load();
+    try {
+      await api.deleteNote(noteId);
+    } catch (e) {
+      setError(e.message);
+      load();
+    }
   };
 
   // Toggles the reaction in local state immediately — we already know

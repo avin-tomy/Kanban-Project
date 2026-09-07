@@ -1006,6 +1006,12 @@ input:focus {
 .card-days-left.card-due-red { color: rgba(229, 83, 75, 0.9); }
 
 /* --- My Tasks --- */
+.task-controls {
+  display: flex;
+  gap: 8px;
+}
+
+.task-filter-select,
 .task-sort-select {
   padding: 6px 12px;
   font-size: 13px;
