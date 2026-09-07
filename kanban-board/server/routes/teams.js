@@ -245,15 +245,29 @@ router.post('/:teamId/transfer-ownership', requireTeamOwner(), async (req, res) 
   res.status(200).json({ ownerId: userId });
 });
 
-// DELETE /teams/:teamId/members/:userId — remove a member; owner-only
-// (removing someone is a deletion), can't remove self/the owner.
-router.delete('/:teamId/members/:userId', requireTeamOwner(), async (req, res) => {
-  if (String(req.params.userId) === String(req.team.ownerId)) {
-    return res.status(400).json({ error: 'The team owner cannot be removed' });
+// DELETE /teams/:teamId/members/:userId — removing an accepted member is
+// owner-only (same reasoning as everywhere else: it's a deletion), but this
+// route doubles as "cancel a pending invitation" — and canceling one is
+// scoped the same as sending one (requireTeamManager, not requireTeamOwner),
+// since a co-owner who can invite someone should be able to un-invite them
+// too. The two need different gates, so this checks status itself instead
+// of using one of the shared middleware.
+router.delete('/:teamId/members/:userId', requireTeamManager(), async (req, res) => {
+  const membership = await TeamMember.findOne({ teamId: req.team._id, userId: req.params.userId, status: { $in: ['pending', 'accepted'] } });
+  if (!membership) return res.status(404).json({ error: 'Not found' });
+
+  if (membership.status === 'accepted') {
+    if (String(req.params.userId) === String(req.team.ownerId)) {
+      return res.status(400).json({ error: 'The team owner cannot be removed' });
+    }
+    if (req.role !== 'owner') {
+      return res.status(403).json({ error: 'Only the team owner can remove a member' });
+    }
   }
 
-  await TeamMember.deleteOne({ teamId: req.team._id, userId: req.params.userId });
-  req.app.get('io').to(`team:${req.team._id}`).emit('team:membership-changed', { teamId: req.team._id, kind: 'member-removed' });
+  const wasPending = membership.status === 'pending';
+  await membership.deleteOne();
+  req.app.get('io').to(`team:${req.team._id}`).emit('team:membership-changed', { teamId: req.team._id, kind: wasPending ? 'invite-cancelled' : 'member-removed' });
   res.status(204).send();
 });
 
