@@ -9,6 +9,7 @@ const jwt = require('jsonwebtoken');
 const { Server } = require('socket.io');
 
 const { requireAuth } = require('./middleware/auth');
+const { isSessionValid } = require('./utils/session');
 const TeamMember = require('./models/TeamMember');
 const Board = require('./models/Board');
 const User = require('./models/User');
@@ -67,11 +68,16 @@ app.set('io', io);
 io.use(async (socket, next) => {
   try {
     const payload = jwt.verify(socket.handshake.auth.token, process.env.JWT_SECRET);
+    if (!(await isSessionValid(payload.sid, payload.sub))) return next(new Error('unauthorized'));
     const user = await User.findById(payload.sub);
     if (!user) return next(new Error('unauthorized'));
     socket.userId = user._id.toString();
     socket.userName = user.name;
     socket.userEmail = user.email;
+    // Recorded so /auth/logout and /auth/logout-all can find and drop this
+    // exact connection the moment its session is revoked, rather than
+    // leaving it live until it happens to reconnect and get rejected then.
+    socket.sessionId = payload.sid;
     next();
   } catch {
     next(new Error('unauthorized'));

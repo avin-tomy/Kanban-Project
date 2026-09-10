@@ -6,12 +6,29 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { requireAuth } = require('../middleware/auth');
 const { sendPasswordResetEmail, sendVerificationEmail } = require('../utils/email');
+const { createSession, revokeSession, revokeAllSessions } = require('../utils/session');
 
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
 const VERIFY_TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
-function signToken(user) {
-  return jwt.sign({ sub: user._id.toString() }, process.env.JWT_SECRET, { expiresIn: '7d' });
+// `sid` is the Redis-backed session id (see utils/session.js) that makes
+// this specific token revocable — without it, logout could only ever be a
+// client-side localStorage clear, and a copied token would keep working
+// until it happened to expire on its own 7 days later.
+function signToken(user, sid) {
+  return jwt.sign({ sub: user._id.toString(), sid }, process.env.JWT_SECRET, { expiresIn: '7d' });
+}
+
+// Every socket already sits in its own `user:<id>` room, and carries the
+// session id it authenticated with (see index.js) — so a revoked session's
+// live connection(s) can be found and dropped immediately, rather than
+// working until they happen to reconnect and get rejected then.
+function disconnectSessions(io, userId, sids) {
+  const sidSet = new Set(sids);
+  for (const socketId of io.sockets.adapter.rooms.get(`user:${userId}`) || []) {
+    const socket = io.sockets.sockets.get(socketId);
+    if (socket && sidSet.has(socket.sessionId)) socket.disconnect(true);
+  }
 }
 
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
@@ -57,7 +74,8 @@ router.post('/signup', async (req, res) => {
   const passwordHash = await bcrypt.hash(password, 10);
   const user = await User.create({ email, passwordHash, name });
   await issueVerificationEmail(user);
-  res.status(201).json({ token: signToken(user), user: toPublicUser(user) });
+  const sid = await createSession(user._id);
+  res.status(201).json({ token: signToken(user, sid), user: toPublicUser(user) });
 });
 
 // POST /auth/login
@@ -74,7 +92,8 @@ router.post('/login', async (req, res) => {
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) return res.status(401).json(genericError);
 
-  res.status(200).json({ token: signToken(user), user: toPublicUser(user) });
+  const sid = await createSession(user._id);
+  res.status(200).json({ token: signToken(user, sid), user: toPublicUser(user) });
 });
 
 // GET /auth/me
@@ -199,7 +218,27 @@ router.post('/reset-password', async (req, res) => {
 
   // Signs them straight in rather than sending them to log in with the
   // password they just entered a moment ago — same convenience signup already gives.
-  res.status(200).json({ token: signToken(user), user: toPublicUser(user) });
+  const sid = await createSession(user._id);
+  res.status(200).json({ token: signToken(user, sid), user: toPublicUser(user) });
+});
+
+// POST /auth/logout — revokes just the session this token carries. A copied
+// token stops working the instant this returns, rather than staying valid
+// until its 7-day expiry; any live socket connection on this session is
+// dropped too (see disconnectSessions above).
+router.post('/logout', requireAuth, async (req, res) => {
+  await revokeSession(req.sessionId, req.userId);
+  disconnectSessions(req.app.get('io'), req.userId, [req.sessionId]);
+  res.status(204).send();
+});
+
+// POST /auth/logout-all — revokes every session this account has, including
+// the one making this request, for when a token/device may be compromised
+// rather than just ending the current visit.
+router.post('/logout-all', requireAuth, async (req, res) => {
+  const revokedSids = await revokeAllSessions(req.userId);
+  disconnectSessions(req.app.get('io'), req.userId, revokedSids);
+  res.status(204).send();
 });
 
 module.exports = router;

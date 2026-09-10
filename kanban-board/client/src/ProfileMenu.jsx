@@ -2,12 +2,14 @@ import { useState } from 'react';
 import { useAuth } from './auth/AuthContext';
 import { useTheme } from './ThemeContext';
 import ChangePasswordModal from './ChangePasswordModal';
+import ConfirmDialog from './ConfirmDialog';
 
 export default function ProfileMenu() {
-  const { user, logout } = useAuth();
+  const { user, logout, logoutAll } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [open, setOpen] = useState(false);
   const [changingPassword, setChangingPassword] = useState(false);
+  const [confirmingLogoutAll, setConfirmingLogoutAll] = useState(false);
   if (!user) return null;
   const initials = user.name.split(' ').map(w => w[0]).join('').toUpperCase();
 
@@ -35,11 +37,22 @@ export default function ProfileMenu() {
             <button className="profile-dropdown-item" onClick={() => { setOpen(false); setChangingPassword(true); }}>
               Change password
             </button>
+            <button className="profile-dropdown-item" onClick={() => { setOpen(false); setConfirmingLogoutAll(true); }}>
+              Log out of all devices
+            </button>
             <button className="profile-dropdown-item" onClick={logout}>Log out</button>
           </div>
         </>
       )}
       {changingPassword && <ChangePasswordModal onClose={() => setChangingPassword(false)} />}
+      {confirmingLogoutAll && (
+        <ConfirmDialog
+          message="This will log out every device signed in to your account, including this one."
+          confirmLabel="Log out everywhere"
+          onConfirm={logoutAll}
+          onCancel={() => setConfirmingLogoutAll(false)}
+        />
+      )}
     </div>
   );
 }

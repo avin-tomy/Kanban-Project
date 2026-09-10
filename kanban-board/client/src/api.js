@@ -45,6 +45,8 @@ export const api = {
     request('/auth/change-password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }),
   resendVerification: () => request('/auth/resend-verification', { method: 'POST' }),
   verifyEmail: (token) => request('/auth/verify-email', { method: 'POST', body: JSON.stringify({ token }) }),
+  logout: () => request('/auth/logout', { method: 'POST' }),
+  logoutAll: () => request('/auth/logout-all', { method: 'POST' }),
 
   getMyTeams: () => request('/teams'),
   getMyAssignedCards: () => request('/me/assigned-cards'),
