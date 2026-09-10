@@ -1458,29 +1458,34 @@ input:focus {
   margin-top: 20px;
 }
 
-.auth-switch {
-  margin-top: 20px;
-  font-size: 13px;
-  color: var(--text-muted);
+.auth-result-message {
+  margin-top: 24px;
+  margin-bottom: 24px;
+  line-height: 1.5;
 }
 
-/* Stands in for a real inbox until email sending is wired up — the reset
-   link is shown right on the page instead of actually being emailed. */
-.dev-reset-link {
-  margin-top: 20px;
-  padding: 12px 14px;
+.email-verify-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding: 10px 14px;
   border: 1px solid var(--border);
   border-left: 3px solid var(--accent);
   border-radius: var(--radius);
   background: var(--surface-sunken);
   font-size: 13px;
-  overflow-wrap: break-word;
 }
 
-.dev-reset-link-label {
-  margin: 0 0 6px 0;
+.email-verify-banner-sent {
   color: var(--text-muted);
-  font-weight: 600;
+}
+
+.auth-switch {
+  margin-top: 20px;
+  font-size: 13px;
+  color: var(--text-muted);
 }
 
 .link-button {

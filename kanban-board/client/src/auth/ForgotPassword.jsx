@@ -31,15 +31,7 @@ export default function ForgotPassword({ onBackToLogin }) {
         <h1>Reset your password</h1>
         {error && <p className="error">{error}</p>}
         {result ? (
-          <>
-            <p>{result.message}</p>
-            {result.devResetLink && (
-              <div className="dev-reset-link">
-                <p className="dev-reset-link-label">Dev mode — no email is actually sent yet:</p>
-                <a href={result.devResetLink}>{result.devResetLink}</a>
-              </div>
-            )}
-          </>
+          <p className="auth-result-message">{result.message}</p>
         ) : (
           <form onSubmit={handleSubmit} className="auth-form">
             <input

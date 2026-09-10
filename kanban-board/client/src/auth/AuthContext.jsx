@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { api, setAuthToken, setUnauthorizedHandler } from '../api';
-import { connectSocket, disconnectSocket } from '../socket';
+import { connectSocket, disconnectSocket, getSocket } from '../socket';
 
 const AuthContext = createContext(null);
 const STORAGE_KEY = 'kanban_token';
@@ -40,6 +40,20 @@ export function AuthProvider({ children }) {
     setUnauthorizedHandler(logout);
   }, []);
 
+  // Every connected socket already sits in its own `user:<id>` room (see
+  // server/index.js), so this catches the case verifyEmail→refreshUser
+  // above can't: the link opened in a different tab/device than the one
+  // showing the "verify your email" banner. Re-fetching rather than trusting
+  // the bare event keeps this in sync with whatever else /auth/me returns.
+  useEffect(() => {
+    if (!user) return;
+    const socket = getSocket();
+    if (!socket) return;
+    const onEmailVerified = () => { api.me().then(setUser).catch(() => {}); };
+    socket.on('user:email-verified', onEmailVerified);
+    return () => socket.off('user:email-verified', onEmailVerified);
+  }, [user?._id]);
+
   const login = async (email, password) => {
     const { token, user } = await api.login(email, password);
     applySession(token, user);
@@ -59,8 +73,25 @@ export function AuthProvider({ children }) {
     applySession(token, user);
   };
 
+  // No applySession here — the token stays valid and doesn't encode the
+  // password, so nothing about the current session needs to change.
+  const changePassword = (currentPassword, newPassword) => api.changePassword(currentPassword, newPassword);
+
+  const resendVerification = () => api.resendVerification();
+  const verifyEmail = (token) => api.verifyEmail(token);
+
+  // Called after a successful verify-email so a session already open in
+  // this tab reflects it immediately, instead of showing the banner until
+  // the next full reload. A no-op if there's no session here at all (the
+  // link may have been opened on a different device).
+  const refreshUser = async () => {
+    if (!user) return;
+    const fresh = await api.me();
+    setUser(fresh);
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, signup, logout, forgotPassword, resetPassword }}>
+    <AuthContext.Provider value={{ user, loading, login, signup, logout, forgotPassword, resetPassword, changePassword, resendVerification, verifyEmail, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

@@ -10,6 +10,11 @@ const userSchema = new mongoose.Schema({
   // the most recently issued link ever works.
   resetPasswordTokenHash: { type: String, default: null },
   resetPasswordExpires: { type: Date, default: null },
+  emailVerified: { type: Boolean, default: false },
+  // Same hashed-token-only pattern as the reset-password fields above, and
+  // for the same reason.
+  verifyEmailTokenHash: { type: String, default: null },
+  verifyEmailExpires: { type: Date, default: null },
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);

@@ -41,6 +41,10 @@ export const api = {
   forgotPassword: (email) => request('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
   resetPassword: (token, password) =>
     request('/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, password }) }),
+  changePassword: (currentPassword, newPassword) =>
+    request('/auth/change-password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }),
+  resendVerification: () => request('/auth/resend-verification', { method: 'POST' }),
+  verifyEmail: (token) => request('/auth/verify-email', { method: 'POST', body: JSON.stringify({ token }) }),
 
   getMyTeams: () => request('/teams'),
   getMyAssignedCards: () => request('/me/assigned-cards'),

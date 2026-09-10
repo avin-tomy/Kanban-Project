@@ -4,11 +4,13 @@ import Login from './auth/Login';
 import Signup from './auth/Signup';
 import ForgotPassword from './auth/ForgotPassword';
 import ResetPassword from './auth/ResetPassword';
+import VerifyEmail from './auth/VerifyEmail';
 import BoardList from './BoardList';
 import BoardDetail from './BoardDetail';
 import TeamMembers from './TeamMembers';
 import MyTasks from './MyTasks';
 import Sidebar from './Sidebar';
+import EmailVerificationBanner from './EmailVerificationBanner';
 import { api } from './api';
 import { getSocket } from './socket';
 import './App.css';
@@ -180,6 +182,7 @@ function AuthenticatedApp() {
         onOpenNotification={handleOpenNotification}
       />
       <main className="main-content">
+        <EmailVerificationBanner />
         {view === 'myTasks' ? (
           <MyTasks onOpenTask={handleOpenTask} />
         ) : !currentTeam ? (
@@ -209,6 +212,9 @@ function App() {
   // whether this device happens to still have a valid session.
   if (window.location.pathname === '/reset-password') {
     return <ResetPassword token={new URLSearchParams(window.location.search).get('token')} />;
+  }
+  if (window.location.pathname === '/verify-email') {
+    return <VerifyEmail token={new URLSearchParams(window.location.search).get('token')} />;
   }
 
   if (loading) return <p style={{ padding: 24 }}>Loading…</p>;
